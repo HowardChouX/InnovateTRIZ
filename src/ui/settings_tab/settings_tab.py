@@ -315,9 +315,16 @@ class SettingsTab(TabContent):
 
     def _show_log_viewer(self, _: Optional[ft.ControlEvent] = None):
         """显示日志查看器"""
+        import os
         from pathlib import Path
 
-        log_file = Path("logs/triz_app.log")
+        # 使用与 main.py 一致的日志路径
+        app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
+        if app_data_path:
+            log_file = Path(app_data_path) / "logs" / "triz_app.log"
+        else:
+            log_file = Path.home() / ".config" / "triz-assistant" / "logs" / "triz_app.log"
+
         log_content = ""
 
         if log_file.exists():
@@ -330,7 +337,7 @@ class SettingsTab(TabContent):
             except Exception as ex:
                 log_content = f"读取日志失败: {ex}"
         else:
-            log_content = "日志文件不存在\n请检查 logs/triz_app.log"
+            log_content = f"日志文件不存在\n请检查 {log_file}"
 
         # 刷新按钮
         refresh_btn = ft.TextButton(
