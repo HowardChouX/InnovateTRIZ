@@ -511,6 +511,8 @@ class LocalStorage:
                         examples = []
                         cross_domain_cases = []
 
+                    # sqlite3.Row 不支持 .get()，需要转换为 dict
+                    row_dict = dict(row)
                     solution = Solution(
                         id=row["sol_id"],
                         principle_id=row["principle_id"],
@@ -521,10 +523,10 @@ class LocalStorage:
                         category=row["category"],
                         examples=examples,
                         created_at=datetime.fromisoformat(row["sol_created_at"]),
-                        technical_solution=row.get("technical_solution") or "",
-                        innovation_point=row.get("innovation_point") or "",
+                        technical_solution=row_dict.get("technical_solution") or "",
+                        innovation_point=row_dict.get("innovation_point") or "",
                         cross_domain_cases=cross_domain_cases,
-                        expected_effect=row.get("expected_effect") or "",
+                        expected_effect=row_dict.get("expected_effect") or "",
                     )
                     session_map[session_id].solutions.append(solution)
 
