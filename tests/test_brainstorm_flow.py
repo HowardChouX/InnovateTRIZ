@@ -348,5 +348,154 @@ class TestSolutionParsing:
         assert all(sol.is_ai_generated for sol in solutions)
 
 
+class TestSinglePrincipleSolutionPrompt:
+    """测试单个原理分析的提示词构建"""
+
+    def test_build_single_principle_prompt_basic(self):
+        """测试基本单个原理提示词构建"""
+        from src.ai.prompts.builder import PromptBuilder
+
+        builder = PromptBuilder()
+        prompt = builder.build_single_principle_solution_prompt(
+            problem="如何减少手机重量同时提高性能",
+            improving_param="重量",
+            worsening_param="性能",
+            principle_id=1
+        )
+
+        # 验证问题被包含
+        assert "如何减少手机重量同时提高性能" in prompt
+        # 验证原理编号被包含
+        assert "1" in prompt or "分割" in prompt
+
+    def test_build_single_principle_prompt_with_synonyms(self):
+        """测试带同义词的单个原理提示词"""
+        from src.ai.prompts.builder import PromptBuilder
+
+        builder = PromptBuilder()
+        # 原理1的同义词是"分割"
+        prompt = builder.build_single_principle_solution_prompt(
+            problem="模块化设计问题",
+            improving_param="复杂性",
+            worsening_param="成本",
+            principle_id=1
+        )
+
+        # 原理1是分割原理，同义词应该被包含
+        assert "分割" in prompt or "1" in prompt
+
+    def test_build_single_principle_prompt_empty_params(self):
+        """测试空参数时的单个原理提示词"""
+        from src.ai.prompts.builder import PromptBuilder
+
+        builder = PromptBuilder()
+        prompt = builder.build_single_principle_solution_prompt(
+            problem="测试问题",
+            improving_param="",
+            worsening_param="",
+            principle_id=15
+        )
+
+        # 空参数应被替换为"未指定"
+        assert "未指定" in prompt
+        assert "测试问题" in prompt
+
+    def test_build_single_principle_prompt_known_principle(self):
+        """测试已知原理的提示词构建"""
+        from src.ai.prompts.builder import PromptBuilder
+
+        builder = PromptBuilder()
+        # 原理15是动态性原理
+        prompt = builder.build_single_principle_solution_prompt(
+            problem="自适应系统设计",
+            improving_param="适应性",
+            worsening_param="复杂性",
+            principle_id=15
+        )
+
+        # 应该包含动态性相关内容
+        assert "自适应系统设计" in prompt
+        assert "15" in prompt or "动态性" in prompt
+
+    def test_build_single_principle_prompt_contains_problem_context(self):
+        """测试提示词包含问题上下文"""
+        from src.ai.prompts.builder import PromptBuilder
+
+        builder = PromptBuilder()
+        specific_problem = "电池续航时间短导致手机用户体验下降"
+        prompt = builder.build_single_principle_solution_prompt(
+            problem=specific_problem,
+            improving_param="电池续航",
+            worsening_param="重量",
+            principle_id=22  # 变害为利原理
+        )
+
+        # 验证具体问题描述被包含
+        assert specific_problem in prompt
+
+
+class TestSinglePrincipleGeneration:
+    """测试单个原理的解决方案生成"""
+
+    def test_generate_solution_for_principle_returns_solution(self):
+        """测试单个原理生成返回解决方案"""
+        from src.ai.ai_client import AIClient
+
+        client = AIClient()
+
+        # 这个测试检查方法是否存在
+        assert hasattr(client, 'generate_solution_for_principle')
+
+    def test_generate_solution_for_principle_signature(self):
+        """测试单个原理生成方法签名"""
+        from src.ai.ai_client import AIClient
+        import inspect
+
+        client = AIClient()
+
+        # 检查方法存在
+        assert hasattr(client, 'generate_solution_for_principle')
+
+        # 检查方法签名
+        sig = inspect.signature(client.generate_solution_for_principle)
+        params = list(sig.parameters.keys())
+
+        # 应该包含: problem, improving_param, worsening_param, principle_id
+        assert 'problem' in params
+        assert 'improving_param' in params
+        assert 'worsening_param' in params
+        assert 'principle_id' in params
+
+
+class TestIterativeGeneration:
+    """测试遍历生成解决方案"""
+
+    def test_triz_engine_has_generate_solutions_iterative(self):
+        """测试TRIZ引擎有遍历生成方法"""
+        from src.core.triz_engine import TRIZEngine
+        import inspect
+
+        engine = TRIZEngine()
+
+        # 检查方法存在
+        assert hasattr(engine, 'generate_solutions_iterative')
+
+    def test_generate_solutions_iterative_signature(self):
+        """测试遍历生成方法签名"""
+        from src.core.triz_engine import TRIZEngine
+        import inspect
+
+        engine = TRIZEngine()
+
+        sig = inspect.signature(engine.generate_solutions_iterative)
+        params = list(sig.parameters.keys())
+
+        # 应该包含必要参数
+        assert 'problem' in params
+        assert 'improving_param' in params
+        assert 'worsening_param' in params
+        assert 'principle_ids' in params
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

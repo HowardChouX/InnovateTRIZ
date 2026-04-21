@@ -662,6 +662,8 @@ SOLUTION_GENERATION_TEMPLATE = """你是TRIZ创新方法专家。请根据以下
 
 直接输出JSON数组，不要用```包裹，不要任何前缀或后缀文字！
 
+**必须生成正好 {solution_count} 个解决方案！**
+
 JSON格式：
 [
   {{
@@ -676,12 +678,51 @@ JSON格式：
 ]
 
 规范：
+1. 必须生成正好 {solution_count} 个解决方案！
+2. technical_solution：50-100字，具体技术步骤
+3. innovation_point：20-30字，具体创新
+4. cross_domain_cases：2个案例
+5. expected_effect：量化指标
+6. 直接输出JSON，不要Markdown包裹！"""
+
+
+# 单原理分析模板（用于遍历注入）
+SINGLE_PRINCIPLE_TEMPLATE = """你是TRIZ创新方法专家。请根据以下信息，针对具体问题生成技术解决方案。
+
+**问题背景：** {problem}
+
+**技术矛盾：**
+- 改善参数: {improving_param}
+- 恶化参数: {worsening_param}
+
+**需要分析的发明原理：**
+原理编号: {principle_id}
+原理名称: {principle_name}
+
+**原理详解：**
+{principle_detail}
+
+## 输出格式要求（严格遵守）
+
+直接输出JSON对象，不要用```包裹，不要任何前缀或后缀文字！
+
+JSON格式：
+{{
+  "principle_id": {principle_id},
+  "principle_name": "{principle_name}",
+  "technical_solution": "【技术方案】（50-100字）具体技术实现步骤，如何降低{worsening_param}同时提升{improving_param}",
+  "innovation_point": "【创新点】（20-30字）具体技术创新点",
+  "cross_domain_cases": ["领域A:具体案例", "领域B:具体案例"],
+  "expected_effect": "【效果】量化指标，如：效率提升X%",
+  "confidence": 0.0到1.0之间的置信度
+}}
+
+规范：
 1. technical_solution：50-100字，具体技术步骤
 2. innovation_point：20-30字，具体创新
 3. cross_domain_cases：2个案例
 4. expected_effect：量化指标
 5. 直接输出JSON，不要Markdown包裹！"""
-
 
 
 # 功能分析模板

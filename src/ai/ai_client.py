@@ -22,6 +22,92 @@ from ..config.constants import (
 logger = logging.getLogger(__name__)
 
 
+def fuzzy_match_param(param: str, param_list: list) -> str:
+    """将参数名模糊匹配到参数列表
+
+    Args:
+        param: 待匹配的参数名
+        param_list: 参数列表
+
+    Returns:
+        匹配到的参数名，如果无匹配则返回原参数
+    """
+    param_lower = param.lower().strip()
+
+    if not param_lower:
+        return param
+
+    # 精确匹配
+    for p in param_list:
+        if p.lower() == param_lower:
+            return p
+
+    # 包含匹配
+    for p in param_list:
+        if param_lower and (param_lower in p.lower() or p.lower() in param_lower):
+            return p
+
+    # 别名映射
+    aliases = {
+        "能量": "移动物体用的能源",
+        "能源": "移动物体用的能源",
+        "功率": "功率",
+        "速度": "速度",
+        "力": "力",
+        "重量": "移动物体的重量",
+        "体积": "移动物体的体积",
+        "长度": "移动物体的长度",
+        "面积": "移动物体的面积",
+        "形状": "形状",
+        "稳定性": "物体的稳定性",
+        "强度": "强度",
+        "温度": "温度",
+        "亮度": "亮度",
+        "可靠性": "可靠性",
+        "复杂性": "设备的复杂性",
+        "时间": "时间的浪费",
+        "浪费": "能源的浪费",
+    }
+    for alias, full_name in aliases.items():
+        if alias in param_lower and full_name in param_list:
+            return full_name
+
+    # 关键词匹配
+    keywords_map = {
+        "能量": ["能源", "能量消耗"],
+        "功率": ["功率"],
+        "速度": ["速度"],
+        "重量": ["重量"],
+        "体积": ["体积"],
+        "长度": ["长度"],
+        "面积": ["面积"],
+        "形状": ["形状"],
+        "稳定": ["稳定性"],
+        "强度": ["强度"],
+        "温度": ["温度"],
+        "亮度": ["亮度"],
+        "可靠": ["可靠性"],
+        "复杂": ["复杂性"],
+        "时间": ["时间"],
+        "浪费": ["浪费"],
+        "生产": ["产能"],
+        "自动": ["自动化"],
+        "控制": ["控制"],
+        "适应": ["适应性"],
+        "修复": ["修复性"],
+        "便利": ["便利性"],
+        "制造": ["制造性"],
+    }
+    for keyword, candidates in keywords_map.items():
+        if keyword in param_lower:
+            for candidate in candidates:
+                for p in param_list:
+                    if keyword in p.lower():
+                        return p
+
+    return param
+
+
 class AIClient:
     """AI客户端"""
 
@@ -564,6 +650,54 @@ JSON格式：
                 success=False, solutions=[], error_message=error_msg, processing_time=0
             )
 
+    async def generate_solution_for_principle(
+        self,
+        problem: str,
+        improving_param: str,
+        worsening_param: str,
+        principle_id: int
+    ) -> Optional[Solution]:
+        """为单个原理生成解决方案"""
+        if not self.is_available():
+            logger.warning("AI服务不可用，无法生成解决方案")
+            return None
+
+        from .prompts.builder import PromptBuilder
+
+        builder = PromptBuilder()
+        prompt = builder.build_single_principle_solution_prompt(
+            problem=problem,
+            improving_param=improving_param,
+            worsening_param=worsening_param,
+            principle_id=principle_id
+        )
+
+        try:
+            client = cast(AsyncOpenAI, self.client)
+            response = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=1500,
+            )
+
+            content = response.choices[0].message.content or ""
+
+            # 移除思考标签
+            import re as regex_module
+            content = regex_module.sub(r'<think>.*?</think>', '', content, flags=regex_module.DOTALL)
+
+            # 解析解决方案
+            solutions = self._parse_solutions(content, [principle_id])
+
+            if solutions:
+                return solutions[0]
+            return None
+
+        except Exception as e:
+            logger.error(f"为原理{principle_id}生成解决方案失败: {e}")
+            return None
+
     def _build_solution_prompt(self, request: AIAnalysisRequest) -> str:
         """构建解决方案提示词（集成丰富的TRIZ知识）"""
         from .prompts.builder import PromptBuilder
@@ -656,6 +790,11 @@ JSON格式：
             # 策略3: 使用eval作为最后手段（仅处理简单情况）
             logger.warning("策略3: 使用保守的文本提取作为最后手段")
             solutions = self._fallback_parse(content, principle_ids)
+
+            # 如果仍无解决方案，返回默认方案
+            if not solutions:
+                logger.warning("策略3未提取到解决方案，使用默认方案")
+                solutions = self._create_default_solutions(principle_ids)
 
             logger.info(f"最终解析结果: {len(solutions)}个解决方案")
             return solutions

@@ -63,6 +63,8 @@ class MatrixTab(TabContent):
         # 当前会话
         self._current_matrix_session: Optional[AnalysisSession] = None
         self._current_brainstorm_session: Optional[AnalysisSession] = None
+        # 矩阵查询的原理数据（用于同步到头脑风暴）
+        self._current_matrix_principles: List = []
 
         # 选中的解决方案（用于批量保存）
         self._selected_solutions: List[int] = []  # 存储选中的 solution index
@@ -213,22 +215,28 @@ class MatrixTab(TabContent):
                         controls=[
                             ft.Row(
                                 controls=[
-                                    ft.Text("改善:", width=50),
-                                    self.improving_btn,
-                                    self.improving_text
+                                    ft.Text("改善:", width=50, size=12),
+                                    self.improving_btn
                                 ],
                                 spacing=5,
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER
                             ),
+                            ft.Container(
+                                content=self.improving_text,
+                                padding=ft.padding.only(left=50)
+                            ),
                             ft.Container(height=5),
                             ft.Row(
                                 controls=[
-                                    ft.Text("恶化:", width=50),
-                                    self.worsening_btn,
-                                    self.worsening_text
+                                    ft.Text("恶化:", width=50, size=12),
+                                    self.worsening_btn
                                 ],
                                 spacing=5,
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER
+                            ),
+                            ft.Container(
+                                content=self.worsening_text,
+                                padding=ft.padding.only(left=50)
                             )
                         ],
                         spacing=3
@@ -287,13 +295,16 @@ class MatrixTab(TabContent):
         )
 
         # 头脑风暴加载指示器（嵌入到结果区域）
+        self.brainstorm_progress_text = ft.Text("准备开始...", size=12, color=ft.Colors.GREY_600)
         self.brainstorm_loading = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.ProgressRing(width=40, height=40),
                     ft.Container(height=10),
                     ft.Text("AI正在思考...", size=14, color=ft.Colors.GREY),
-                    ft.Text("正在基于TRIZ原理生成创新解决方案...", size=12, color=ft.Colors.GREY_600)
+                    ft.Text("正在基于TRIZ原理生成创新解决方案...", size=12, color=ft.Colors.GREY_600),
+                    ft.Container(height=5),
+                    self.brainstorm_progress_text
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=5
@@ -557,6 +568,9 @@ class MatrixTab(TabContent):
             unique_principle_ids = list(dict.fromkeys(all_principle_ids))
             principles = self._principle_service.get_principles_by_ids(unique_principle_ids)
 
+            # 保存矩阵原理数据，供头脑风暴使用
+            self._current_matrix_principles = principles
+
             # 保持 principles 为 InventivePrinciple 对象用于显示
             solutions = []
             for p in principles:
@@ -639,23 +653,43 @@ class MatrixTab(TabContent):
             improving = self.improving_params[0] if self.improving_params else None
             worsening = self.worsening_params[0] if self.worsening_params else None
 
-            # 创建AI请求，包含查询到的原理ID
-            from src.data.models import AIAnalysisRequest
-            ai_request = AIAnalysisRequest(
+            # 使用遍历注入模式生成解决方案
+            # 定义进度回调函数
+            def update_progress(current: int, total: int):
+                # 更新进度显示
+                if hasattr(self, 'brainstorm_progress_text'):
+                    self.brainstorm_progress_text.value = f"正在分析原理 {current}/{total}..."
+                    self._page.update()
+
+            # 调用遍历生成方法
+            solutions = await engine.generate_solutions_iterative(
                 problem=problem,
                 improving_param=improving,
                 worsening_param=worsening,
                 principle_ids=unique_principle_ids,
-                solution_count=5
+                progress_callback=update_progress
             )
 
-            session = await engine.analyze_problem(
+            # 创建会话
+            from src.data.models import AnalysisSession
+            session = AnalysisSession(
                 problem=problem,
                 improving_param=improving,
                 worsening_param=worsening,
-                use_ai=True,
-                ai_request=ai_request
+                ai_enabled=True,
+                matrix_type="39",
+                solutions=solutions,
+                solution_count=len(solutions)
             )
+
+            # 用矩阵查询的原理数据同步解决方案的原理信息
+            if self._current_matrix_principles and session.solutions:
+                principle_map = {p.id: p for p in self._current_matrix_principles}
+                for sol in session.solutions:
+                    if sol.principle_id in principle_map:
+                        p = principle_map[sol.principle_id]
+                        sol.principle_name = p.name
+                        sol.category = p.category
 
             # 检查AI是否返回了有效的结构化解决方案
             has_structured_solutions = any(
@@ -670,9 +704,6 @@ class MatrixTab(TabContent):
                 logger.warning("AI未返回有效解决方案")
                 self._show_snack_bar("AI未返回有效解决方案，请检查网络或API配置")
                 return
-
-            session.ai_enabled = True
-            session.matrix_type = "39"
 
             # 头脑风暴成功，标记AI为已连接
             ai_manager.set_connected(True)
@@ -931,12 +962,14 @@ class MatrixTab(TabContent):
 
         # 点击显示解决方案详情弹窗
         def show_solution_detail(e):
-            self._show_simple_detail_dialog(
+            self._show_solution_detail_dialog(
                 principle_id=solution_id,
                 principle_name=solution_name,
-                definition=solution_description,
-                examples=solution_examples,
-                category=solution_category
+                category=solution_category,
+                technical_solution=technical_solution,
+                innovation_point=innovation_point,
+                cross_domain_cases=cross_domain_cases,
+                examples=solution_examples
             )
 
         # 复选框
@@ -1263,7 +1296,10 @@ class MatrixTab(TabContent):
 
                         # 应用效益
                         ft.Text("应用效益", size=14, weight=ft.FontWeight.BOLD),
-                        ft.Text(principle.benefits, size=12)
+                        ft.Text(principle.benefits, size=12),
+
+                        # 底部留白，防止内容被遮挡
+                        ft.Container(height=40)
                     ],
                     spacing=8,
                     scroll=ft.ScrollMode.AUTO
@@ -1345,6 +1381,138 @@ class MatrixTab(TabContent):
                 ),
                 width=400,
                 height=350,
+                padding=10
+            ),
+            actions=[
+                ft.TextButton("关闭", on_click=lambda e: self._close_dialog())
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+
+        self._page.show_dialog(dialog)  # type: ignore
+
+    def _show_solution_detail_dialog(self, principle_id, principle_name, category,
+                                     technical_solution='', innovation_point='',
+                                     cross_domain_cases=None, examples=None):
+        """显示头脑风暴解决方案详情弹窗"""
+        if cross_domain_cases is None:
+            cross_domain_cases = []
+        if examples is None:
+            examples = []
+
+        # 构建内容控件
+        content_controls = []
+
+        # 分类
+        content_controls.append(
+            ft.Container(
+                content=ft.Row(
+                    controls=[
+                        ft.Text("分类:", size=12, weight=ft.FontWeight.BOLD),
+                        ft.Container(
+                            content=ft.Text(category, size=11, color=ft.Colors.WHITE),
+                            padding=5,
+                            border_radius=5,
+                            bgcolor=self._get_category_color(category)
+                        )
+                    ],
+                    spacing=10
+                ),
+                padding=10
+            )
+        )
+
+        content_controls.append(ft.Divider())
+
+        # 技术方向（原核心定义）
+        if technical_solution:
+            content_controls.append(ft.Text("技术方向", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Container(
+                    content=ft.Text(technical_solution, size=13),
+                    padding=10,
+                    bgcolor=ft.Colors.GREY_100,
+                    border_radius=8
+                )
+            )
+            content_controls.append(ft.Container(height=5))
+
+        # 创新点
+        if innovation_point:
+            content_controls.append(ft.Text("创新点", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Container(
+                    content=ft.Text(innovation_point, size=13),
+                    padding=10,
+                    bgcolor=ft.Colors.GREY_100,
+                    border_radius=8
+                )
+            )
+            content_controls.append(ft.Container(height=5))
+
+        # 案例（原应用示例）
+        if cross_domain_cases:
+            cases_text = "\n".join([f"• {c}" for c in cross_domain_cases])
+            content_controls.append(ft.Text("案例", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Container(
+                    content=ft.Text(cases_text, size=12),
+                    padding=10,
+                    bgcolor=ft.Colors.GREY_100,
+                    border_radius=8
+                )
+            )
+            content_controls.append(ft.Container(height=5))
+
+        # 如果没有技术方向和创新点，显示原有的定义和示例
+        if not technical_solution and not innovation_point and examples:
+            content_controls.append(ft.Text("核心定义", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Container(
+                    content=ft.Text(getattr(self, '_current_solution', {}).get('description', ''), size=13),
+                    padding=10,
+                    bgcolor=ft.Colors.GREY_100,
+                    border_radius=8
+                )
+            )
+            content_controls.append(ft.Container(height=5))
+            content_controls.append(ft.Text("应用示例", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text(f"• {ex}", size=12) for ex in examples
+                        ] if examples else [ft.Text("暂无示例", size=12, color=ft.Colors.GREY)],
+                        spacing=3
+                    ),
+                    padding=5
+                )
+            )
+
+        # 底部留白，防止内容被遮挡
+        content_controls.append(ft.Container(height=40))
+
+        dialog = ft.AlertDialog(
+            title=ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Text(f"#{principle_id}", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                        padding=8,
+                        border_radius=8,
+                        bgcolor=COLORS["primary"]
+                    ),
+                    ft.Text(principle_name, size=18, weight=ft.FontWeight.BOLD)
+                ],
+                spacing=10
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=content_controls,
+                    spacing=8,
+                    scroll=ft.ScrollMode.AUTO
+                ),
+                width=400,
+                height=450,
                 padding=10
             ),
             actions=[

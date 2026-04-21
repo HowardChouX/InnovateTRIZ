@@ -582,6 +582,75 @@ class TRIZEngine:
 
         return session
 
+    async def generate_solutions_iterative(
+        self,
+        problem: str,
+        improving_param: Optional[str],
+        worsening_param: Optional[str],
+        principle_ids: List[int],
+        progress_callback: Optional[callable] = None
+    ) -> List[Solution]:
+        """
+        遍历方式生成解决方案（每个原理单独调用AI）
+
+        Args:
+            problem: 问题描述
+            improving_param: 改善参数
+            worsening_param: 恶化参数
+            principle_ids: 原理ID列表
+            progress_callback: 进度回调函数 (current: int, total: int)
+
+        Returns:
+            解决方案列表
+        """
+        from ..ai.ai_client import get_ai_manager
+
+        solutions = []
+        total = len(principle_ids)
+
+        if total == 0:
+            return solutions
+
+        ai_manager = get_ai_manager()
+        ai_client = ai_manager.get_client()
+
+        if not ai_client:
+            logger.warning("AI客户端不可用，使用本地引擎生成")
+            return self.local_engine.generate_solutions(
+                principle_ids=principle_ids,
+                problem=problem,
+                count=total
+            )
+
+        for i, principle_id in enumerate(principle_ids):
+            # 报告进度
+            if progress_callback:
+                progress_callback(i + 1, total)
+
+            # 为单个原理生成解决方案
+            solution = await ai_client.generate_solution_for_principle(
+                problem=problem,
+                improving_param=improving_param or "",
+                worsening_param=worsening_param or "",
+                principle_id=principle_id
+            )
+
+            if solution:
+                solutions.append(solution)
+            else:
+                # 如果AI生成失败，使用本地引擎作为后备
+                logger.warning(f"原理{principle_id}的AI生成失败，使用本地引擎")
+                local_solutions = self.local_engine.generate_solutions(
+                    principle_ids=[principle_id],
+                    problem=problem,
+                    count=1
+                )
+                if local_solutions:
+                    solutions.append(local_solutions[0])
+
+        logger.info(f"遍历生成完成: 共{len(solutions)}/{total}个解决方案")
+        return solutions
+
 
 # 全局TRIZ引擎实例
 triz_engine = TRIZEngine()

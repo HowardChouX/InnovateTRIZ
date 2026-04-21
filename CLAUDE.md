@@ -48,7 +48,7 @@ flet build aab
 | 自定义控件 | `docs_flet/extend/` |
 | 客户端存储 | `docs_flet/cookbook/client-storage.md` |
 
-### Flet 关键规范（当前版本 v0.84.0）
+### Flet 关键规范（当前版本 v0.82.2）
 
 - 入口：`ft.app(target=async_main, assets_dir="assets")`
 - 异步优先：事件处理器应为 `async def`，刷新使用 `await page.update_async()`
@@ -108,6 +108,15 @@ main.py → TRIZApp.main(page)
 - `AIClient` 封装 `AsyncOpenAI`，通过 `openai` 兼容 SDK 调用 DeepSeek（默认）或 OpenRouter
 - `AIManager`（单例）管理连接状态：`is_enabled()` = 已配置，`is_connected()` = 实际可用
 - `LocalTRIZEngine.detect_parameters()` 用关键词权重匹配（带 `@lru_cache`）作为 AI 的降级方案
+- **头脑风暴遍历注入**：`TRIZEngine.generate_solutions_iterative()` 遍历每个原理单独调用 AI
+
+### 提示词系统
+
+- `PromptBuilder`（`src/ai/prompts/builder.py`）：构建各类提示词
+  - `build_solution_prompt()`：批量生成解决方案提示词
+  - `build_single_principle_solution_prompt()`：单个原理分析提示词（遍历注入用）
+- `PromptLoader`（`src/ai/prompts/loader.py`）：加载40发明原理详情
+- `SINGLE_PRINCIPLE_TEMPLATE`：单个原理分析的提示词模板
 
 ## 关键约束
 

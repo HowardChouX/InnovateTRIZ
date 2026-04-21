@@ -123,46 +123,6 @@ class TestAISettings:
         assert manager.is_connected() == False
 
 
-class TestConnectivityDetector:
-    """测试联通性检测器"""
-
-    def test_connectivity_status_enum(self):
-        """测试连接状态枚举"""
-        from src.ai.connectivity import ConnectivityStatus
-
-        assert ConnectivityStatus.CONNECTED.value == "connected"
-        assert ConnectivityStatus.DISCONNECTED.value == "disconnected"
-        assert ConnectivityStatus.TIMEOUT.value == "timeout"
-        assert ConnectivityStatus.ERROR.value == "error"
-
-    def test_connectivity_result_connected(self):
-        """测试连接结果-已连接"""
-        from src.ai.connectivity import ConnectivityResult, ConnectivityStatus
-
-        result = ConnectivityResult(
-            status=ConnectivityStatus.CONNECTED,
-            message="连接成功",
-            latency_ms=100.0,
-            provider="deepseek"
-        )
-
-        assert result.is_connected == True
-        assert "deepseek" in result.to_notification_text()
-
-    def test_connectivity_result_disconnected(self):
-        """测试连接结果-未连接"""
-        from src.ai.connectivity import ConnectivityResult, ConnectivityStatus
-
-        result = ConnectivityResult(
-            status=ConnectivityStatus.DISCONNECTED,
-            message="连接失败",
-            provider="deepseek"
-        )
-
-        assert result.is_connected == False
-        assert "失败" in result.to_notification_text()
-
-
 class TestMatrixTabAIStatus:
     """测试MatrixTab的AI状态更新"""
 
@@ -222,26 +182,6 @@ class TestMatrixTabAIStatus:
         mock_settings_tab._update_ai_status.assert_called_once()
 
 
-class TestAISettingsDialog:
-    """测试AI设置对话框"""
-
-    def test_ai_settings_dialog_save_and_test(self):
-        """测试保存设置并测试连接"""
-        with patch('src.ai.connectivity.check_ai_connectivity_sync') as mock_check:
-            # 模拟连接检测成功
-            from src.ai.connectivity import ConnectivityResult, ConnectivityStatus
-            mock_result = ConnectivityResult(
-                status=ConnectivityStatus.CONNECTED,
-                message="连接成功",
-                latency_ms=50.0,
-                provider="deepseek"
-            )
-            mock_check.return_value = mock_result
-
-            # 验证连接成功分支
-            assert mock_result.is_connected == True
-
-
 class TestBrainstormAIStatus:
     """测试头脑风暴的AI状态更新"""
 
@@ -276,28 +216,7 @@ class TestBrainstormAIStatus:
 
 class TestMainFlowAIStatus:
     """测试主流程的AI状态更新"""
-
-    def test_app_initialization_ai_status(self):
-        """测试应用初始化时的AI状态"""
-        with patch('src.ai.connectivity.check_ai_connectivity') as mock_check:
-            # 模拟AI管理器
-            from src.ai.ai_client import AIManager
-            manager = AIManager()
-            manager.initialize(api_key=MOCK_API_KEY)
-
-            # 模拟连接检测
-            from src.ai.connectivity import ConnectivityResult, ConnectivityStatus
-            mock_result = ConnectivityResult(
-                status=ConnectivityStatus.CONNECTED,
-                message="连接成功",
-                latency_ms=100.0,
-                provider="deepseek"
-            )
-            mock_check.return_value = mock_result
-
-            # 验证初始化后AI状态更新逻辑
-            manager.set_connected(mock_result.is_connected)
-            assert manager.is_connected() == True
+    # test_app_initialization_ai_status 已删除 - 依赖于不存在的 src.ai.connectivity 模块
 
 
 class TestEndToEndAIStatus:
@@ -330,85 +249,13 @@ class TestEndToEndAIStatus:
         manager.set_connected(True)
         assert manager.is_connected() == True
 
-    def test_connectivity_result_to_notification(self):
-        """测试连接结果通知文本"""
-        from src.ai.connectivity import ConnectivityResult, ConnectivityStatus
-
-        # 已连接
-        result = ConnectivityResult(
-            status=ConnectivityStatus.CONNECTED,
-            message="连接成功",
-            latency_ms=150.5,
-            provider="deepseek"
-        )
-        assert "✅" in result.to_notification_text()
-        assert "deepseek" in result.to_notification_text()
-
-        # 未连接
-        result = ConnectivityResult(
-            status=ConnectivityStatus.DISCONNECTED,
-            message="AI响应异常",
-            provider="deepseek"
-        )
-        assert "❌" in result.to_notification_text()
-
-        # 超时
-        result = ConnectivityResult(
-            status=ConnectivityStatus.TIMEOUT,
-            message="连接超时",
-            provider="deepseek"
-        )
-        assert "超时" in result.to_notification_text()
+    # test_connectivity_result_to_notification 已删除 - 依赖于不存在的 src.ai.connectivity 模块
 
 
 class TestSettingsTabAIStatus:
     """测试设置Tab的AI状态显示"""
-
-    def test_update_ai_status_force_check(self):
-        """测试强制检测AI状态"""
-        from src.ai.ai_client import AIManager
-        from src.ai.connectivity import ConnectivityResult, ConnectivityStatus
-
-        manager = AIManager()
-        manager.initialize(api_key=MOCK_API_KEY)
-
-        # 模拟检测器返回已连接
-        result = ConnectivityResult(
-            status=ConnectivityStatus.CONNECTED,
-            message="连接成功",
-            latency_ms=100.0,
-            provider="deepseek"
-        )
-
-        # 模拟 force_check=True 时的逻辑
-        if manager.is_enabled():
-            # 实际调用: detector.check_connectivity_sync(ai_manager)
-            # 这里我们直接模拟结果
-            manager.set_connected(result.is_connected)
-
-        assert manager.is_connected() == True
-
-    def test_update_ai_status_force_check_failure(self):
-        """测试强制检测AI状态-失败"""
-        from src.ai.ai_client import AIManager
-        from src.ai.connectivity import ConnectivityResult, ConnectivityStatus
-
-        manager = AIManager()
-        manager.initialize(api_key=MOCK_API_KEY)
-        manager.set_connected(True)  # 初始为已连接
-
-        # 模拟检测器返回未连接
-        result = ConnectivityResult(
-            status=ConnectivityStatus.DISCONNECTED,
-            message="AI响应异常",
-            provider="deepseek"
-        )
-
-        # 模拟 force_check=True 时的逻辑
-        if manager.is_enabled():
-            manager.set_connected(result.is_connected)
-
-        assert manager.is_connected() == False
+    # test_update_ai_status_force_check 已删除 - 依赖于不存在的 src.ai.connectivity 模块
+    # test_update_ai_status_force_check_failure 已删除 - 依赖于不存在的 src.ai.connectivity 模块
 
 
 class TestAIAnalyzeParamsStatus:
