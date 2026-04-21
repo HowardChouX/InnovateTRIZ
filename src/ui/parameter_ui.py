@@ -7,7 +7,7 @@ import flet as ft
 import logging
 from typing import Optional, Callable, Dict, List
 
-from ..config.constants import ENGINEERING_PARAMETERS_39, COLORS
+from ..config.constants import COLORS
 
 logger = logging.getLogger(__name__)
 
@@ -84,27 +84,25 @@ class ParameterPicker:
     def show(self):
         """显示参数选择弹窗"""
         self._create_dialog()
-        self.page.dialog = self.dialog
-        self.dialog.open = True
-        self.page.update()
+        self.page.show_dialog(self.dialog)  # type: ignore
 
     def _create_dialog(self):
         """创建弹窗"""
         # 标题
         title = "选择改善参数" if self.param_type == "improving" else "选择恶化参数"
-        title_icon = ft.icons.TRENDING_UP if self.param_type == "improving" else ft.icons.TRENDING_DOWN
+        title_icon = ft.icons.Icons.ARROW_UPWARD if self.param_type == "improving" else ft.icons.Icons.ARROW_DOWNWARD
 
         # 搜索框
         self.search_field = ft.TextField(
             hint_text="搜索参数...",
-            prefix_icon=ft.icons.SEARCH,
-            on_change=self._on_search_input,
+            prefix_icon=ft.icons.Icons.SEARCH,
+            on_change=self._on_search_input,  # type: ignore
             autofocus=True
         )
 
         # 清除按钮
         clear_btn = ft.TextButton(
-            text="清除选择",
+            "清除选择",
             on_click=self._on_clear_click
         )
 
@@ -145,20 +143,20 @@ class ParameterPicker:
             title=ft.Container(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(ft.icons.SETTINGS, color=COLORS["primary"]),
+                        ft.Icon(ft.icons.Icons.SETTINGS, color=COLORS["primary"]),
                         ft.Text(title, weight=ft.FontWeight.BOLD)
                     ]
                 ),
                 padding=10
             ),
             content=dialog_content,
-            actions=[
+            actions=[  # type: ignore
                 ft.TextButton(
-                    text="确认",
+                    "确认",
                     on_click=self._on_confirm_click
                 ),
                 ft.TextButton(
-                    text="取消",
+                    "取消",
                     on_click=self._on_cancel_click
                 )
             ],
@@ -167,7 +165,7 @@ class ParameterPicker:
 
     def _on_search_input(self, e: ft.ControlEvent):
         """搜索框输入处理（实时搜索）"""
-        query = e.control.value.strip().lower()
+        query = e.control.value.strip().lower()  # type: ignore
         self._filter_params(query)
         self._update_param_list()
         self.page.update()
@@ -187,6 +185,7 @@ class ParameterPicker:
 
     def _update_param_list(self):
         """更新参数列表"""
+        assert self.content_column is not None
         self.content_column.controls.clear()
 
         for category, params in self.filtered_params.items():
@@ -215,22 +214,22 @@ class ParameterPicker:
 
     def _create_param_button(self, param: str, is_selected: bool) -> ft.Container:
         """创建参数按钮"""
-        bg_color = COLORS["primary"] + "20" if is_selected else ft.colors.GREY_100
-        border_color = COLORS["primary"] if is_selected else ft.colors.TRANSPARENT
+        bg_color = COLORS["primary"] + "20" if is_selected else ft.Colors.GREY_100
+        border_color = COLORS["primary"] if is_selected else ft.Colors.TRANSPARENT
 
         return ft.Container(
             content=ft.Row(
                 controls=[
                     ft.Icon(
-                        ft.icons.CHECK_BOX if is_selected else ft.icons.CHECK_BOX_OUTLINE_BLANK,
-                        color=COLORS["primary"] if is_selected else ft.colors.GREY,
+                        ft.icons.Icons.CHECK_BOX if is_selected else ft.icons.Icons.CHECK_BOX_OUTLINE_BLANK,
+                        color=COLORS["primary"] if is_selected else ft.Colors.GREY,
                         size=20
                     ),
                     ft.Container(expand=True),
                     ft.Text(
                         param,
                         size=14,
-                        color=COLORS["text_primary"] if is_selected else ft.colors.GREY_700
+                        color=COLORS["text_primary"] if is_selected else ft.Colors.GREY_700
                     )
                 ],
                 spacing=10
@@ -239,7 +238,7 @@ class ParameterPicker:
             border_radius=8,
             bgcolor=bg_color,
             border=ft.border.all(1, border_color),
-            on_click=lambda e, p=param: self._on_param_click(p)
+            on_click=lambda _, p=param: self._on_param_click(p)
         )
 
     def _on_param_click(self, param: str):
@@ -257,12 +256,11 @@ class ParameterPicker:
             self.page.update()
         else:
             # 单选模式：直接选中并关闭
-            self.dialog.open = False
-            self.page.update()
+            self.page.pop_dialog()
             if self.on_selected:
                 self.on_selected(self.param_type, param)
 
-    def _on_clear_click(self, e: ft.ControlEvent):
+    def _on_clear_click(self, _):  # type: ignore
         """清除选择"""
         logger.info("清除参数选择")
         self.current_values = []
@@ -272,16 +270,14 @@ class ParameterPicker:
         if self.on_selected:
             self.on_selected(self.param_type, [])
 
-    def _on_confirm_click(self, e: ft.ControlEvent):
+    def _on_confirm_click(self, _):  # type: ignore
         """确认按钮点击"""
         logger.info(f"确认选择: {self.current_values}")
-        self.dialog.open = False
-        self.page.update()
+        self.page.pop_dialog()
 
         if self.on_selected:
             self.on_selected(self.param_type, self.current_values)
 
-    def _on_cancel_click(self, e: ft.ControlEvent):
+    def _on_cancel_click(self, _):  # type: ignore
         """取消按钮点击"""
-        self.dialog.open = False
-        self.page.update()
+        self.page.pop_dialog()

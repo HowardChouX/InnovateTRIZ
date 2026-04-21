@@ -48,12 +48,12 @@ class PromptLoader:
         return CN_INVENTIVE_PRINCIPLES.get(principle_number, "")
 
     @staticmethod
-    def get_principle_synonyms(principle_number: int) -> str:
+    def get_principle_synonyms(_principle_number: int) -> str:
         """获取原理同义词"""
         return ""
 
     @staticmethod
-    def get_principle_sub_principles(principle_number: int) -> List[str]:
+    def get_principle_sub_principles(_principle_number: int) -> List[str]:
         """获取原理子原则列表"""
         return []
 
@@ -101,7 +101,7 @@ class PromptLoader:
         return STANDARD_SOLUTIONS_76.copy()
 
     @staticmethod
-    def get_standard_solutions_by_class(class_num: int) -> List[Dict]:
+    def get_standard_solutions_by_class(class_num: int) -> Dict:
         """获取指定类别的所有标准解"""
         return {
             k: v for k, v in STANDARD_SOLUTIONS_76.items()

@@ -8,13 +8,12 @@ import logging
 from typing import Optional, Callable, List
 
 from ..app_shell import TabContent
-from ...config.constants import COLORS, ENGINEERING_PARAMETERS_39
+from ...config.constants import COLORS
 from ...data.models import AnalysisSession, Solution
 from ...data.local_storage import LocalStorage
 from ...core.matrix_selector import get_matrix_manager
 from ...core.principle_service import get_principle_service
 from ..parameter_ui import ParameterPicker
-from ..solution_ui import SolutionListView
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,12 @@ class MatrixTab(TabContent):
         self.on_navigate_to_principle = on_navigate_to_principle
         self._principle_service = get_principle_service()
         self._matrix_manager = get_matrix_manager()
-        
+
+        # 订阅AI状态变化
+        from ..state import get_ai_state_manager
+        ai_state = get_ai_state_manager()
+        ai_state.subscribe(self._on_ai_state_changed)
+
         # 状态
         self.ai_enabled = False
         self.improving_params: List[str] = []
@@ -53,7 +57,7 @@ class MatrixTab(TabContent):
         self.analyze_btn: Optional[ft.Button] = None
         self.loading_indicator: Optional[ft.ProgressBar] = None
         self.result_container: Optional[ft.Container] = None
-        self.brainstorm_dialog: Optional[ft.AlertDialog] = None
+        self.brainstorm_loading: ft.Container
         self.ai_analysis_result_container: Optional[ft.Container] = None
 
         # 当前会话
@@ -65,13 +69,27 @@ class MatrixTab(TabContent):
 
         super().__init__("matrix")
 
+    def _show_snack_bar(self, message: str, duration: int = 3000):  # noqa: ARG002
+        """显示弹窗提示消息"""
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton("确定", on_click=lambda _: self._page.pop_dialog())
+            ]
+        )
+        self._page.show_dialog(dlg)  # type: ignore
+
     def on_show(self):
         """当Tab显示时调用"""
-        # 只在首次显示时构建UI
-        if not self.problem_input:
-            self._build_ui()
-        # 更新AI按钮状态
-        self._update_ai_buttons()
+        try:
+            # 只在首次显示时构建UI
+            if not self.problem_input:
+                self._build_ui()
+            # 更新AI按钮状态
+            self._update_ai_buttons()
+        except Exception as e:
+            logger.error(f"MatrixTab on_show error: {e}", exc_info=True)
 
     def _mark_ai_disconnected(self):
         """标记AI为未连接状态，并通知AI状态变化"""
@@ -84,6 +102,14 @@ class MatrixTab(TabContent):
         # 通过AIStateManager通知订阅者
         ai_state = get_ai_state_manager()
         ai_state.update_status(ai_manager.is_enabled(), False)
+
+    def _on_ai_state_changed(self, is_enabled: bool, is_connected: bool):
+        """AI状态变化回调"""
+        logger.info(f"MatrixTab收到AI状态变化: enabled={is_enabled}, connected={is_connected}")
+        try:
+            self._update_ai_buttons()
+        except Exception as e:
+            logger.error(f"_on_ai_state_changed error: {e}", exc_info=True)
 
     def _update_ai_buttons(self):
         """根据AI连接状态启用/禁用AI相关按钮"""
@@ -128,11 +154,12 @@ class MatrixTab(TabContent):
             min_lines=3,
             max_lines=5,
             border_color=COLORS["primary"],
+            expand=True,
             on_change=self._on_problem_changed
         )
 
         self.analyze_params_btn = ft.Button(
-            content=ft.Text("🤖 AI分析参数"),
+            content=ft.Text(" AI分析参数"),
             icon=ft.icons.Icons.AUTO_AWESOME,
             on_click=self._on_ai_analyze_params,
             style=ft.ButtonStyle(
@@ -167,7 +194,7 @@ class MatrixTab(TabContent):
             content=ft.Column(
                 controls=[
                     ft.Text("问题描述", size=16, weight=ft.FontWeight.BOLD),
-                    self.problem_input,
+                    ft.Container(content=self.problem_input, expand=True),
                     ft.Container(height=5),
                     ft.Row(
                         controls=[
@@ -258,6 +285,23 @@ class MatrixTab(TabContent):
             padding=5,
             height=300
         )
+
+        # 头脑风暴加载指示器（嵌入到结果区域）
+        self.brainstorm_loading = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.ProgressRing(width=40, height=40),
+                    ft.Container(height=10),
+                    ft.Text("AI正在思考...", size=14, color=ft.Colors.GREY),
+                    ft.Text("正在基于TRIZ原理生成创新解决方案...", size=12, color=ft.Colors.GREY_600)
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=5
+            ),
+            visible=False,
+            padding=20
+        )
+
         self.brainstorm_result_container = ft.Container(
             content=ft.Column(scroll=ft.ScrollMode.AUTO),
             padding=5,
@@ -278,7 +322,7 @@ class MatrixTab(TabContent):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Text("📊 矩阵查询结果", size=14, weight=ft.FontWeight.BOLD),
+                                ft.Text(" 矩阵查询结果", size=14, weight=ft.FontWeight.BOLD),
                                 ft.Container(height=5),
                                 self.matrix_result_container
                             ],
@@ -293,7 +337,7 @@ class MatrixTab(TabContent):
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Text("💡 AI头脑风暴", size=14, weight=ft.FontWeight.BOLD),
+                                ft.Text(" AI头脑风暴", size=14, weight=ft.FontWeight.BOLD),
                                 ft.Container(height=5),
                                 self.brainstorm_result_container
                             ],
@@ -309,27 +353,28 @@ class MatrixTab(TabContent):
             )
         ])
 
-    def _on_problem_changed(self, e: ft.ControlEvent):
+    def _on_problem_changed(self, e: ft.Event):
         """问题描述变化"""
         self.problem_text = e.control.value.strip()
 
-    async def _on_ai_analyze_params(self, e: ft.ControlEvent):
+    async def _on_ai_analyze_params(self, e: ft.Event):
         """AI分析参数按钮点击"""
+        # Guard: ensure UI components are initialized
+        if not self.improving_text or not self.worsening_text:
+            self._show_snack_bar("界面未就绪，请重试")
+            return
+
         problem = self.problem_input.value.strip() if self.problem_input else ""
 
         if not problem:
-            self._page.show_snack_bar(
-                ft.SnackBar(content=ft.Text("请先输入问题描述"), duration=3000)
-            )
+            self._show_snack_bar("请先输入问题描述")
             return
 
         # 检查AI是否可用
         from src.ai.ai_client import get_ai_manager
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
-            self._page.show_snack_bar(
-                ft.SnackBar(content=ft.Text("请先在设置中配置AI"), duration=3000)
-            )
+            self._show_snack_bar("请先在设置中配置AI")
             return
 
         # 显示加载状态
@@ -339,7 +384,16 @@ class MatrixTab(TabContent):
 
         try:
             client = ai_manager.get_client()
+            if not client:
+                raise RuntimeError("AI客户端未初始化")
             result = await client.detect_parameters(problem)
+
+            # 检查是否有错误
+            if result.get("error"):
+                logger.error(f"AI参数检测返回错误: {result.get('error')}")
+                self._mark_ai_disconnected()
+                self._show_snack_bar(f"AI分析失败: {result.get('error')}")
+                return
 
             # AI调用成功，标记为已连接
             ai_manager.set_connected(True)
@@ -384,12 +438,12 @@ class MatrixTab(TabContent):
             explanation = result.get("explanation", "")
 
             # 更新AI分析结果展示
-            self.ai_analysis_result_container.content = ft.Column(
+            self.ai_analysis_result_container.content = ft.Column(  # type: ignore
                 controls=[
                     ft.Row(
                         controls=[
                             ft.Icon(ft.icons.Icons.LIGHTBULB, color=COLORS["secondary"], size=20),
-                            ft.Text("🤖 AI参数分析结果", size=14, weight=ft.FontWeight.BOLD, color=COLORS["secondary"])
+                            ft.Text(" AI参数分析结果", size=14, weight=ft.FontWeight.BOLD, color=COLORS["secondary"])
                         ],
                         spacing=5
                     ),
@@ -419,15 +473,13 @@ class MatrixTab(TabContent):
                 ] if explanation else []),
                 spacing=3
             )
-            self.ai_analysis_result_container.visible = True
+            self.ai_analysis_result_container.visible = True  # type: ignore
 
         except Exception as ex:
             logger.error(f"AI参数分析失败: {ex}")
             # AI调用失败，标记为未连接
             self._mark_ai_disconnected()
-            self._page.show_snack_bar(
-                ft.SnackBar(content=ft.Text(f"AI分析失败: {str(ex)}"), duration=3000)
-            )
+            self._show_snack_bar(f"AI分析失败: {str(ex)}")
         finally:
             self.ai_analyze_loading.visible = False
             self.analyze_params_btn.disabled = False
@@ -437,7 +489,7 @@ class MatrixTab(TabContent):
         """显示参数选择器"""
         current = self.improving_params if param_type == "improving" else self.worsening_params
         picker = ParameterPicker(
-            page=self.page,
+            page=self._page,
             param_type=param_type,
             current_values=current,
             on_selected=self._on_param_selected,
@@ -453,39 +505,37 @@ class MatrixTab(TabContent):
                 display = ", ".join(self.improving_params[:2])
                 if len(self.improving_params) > 2:
                     display += f"...(+{len(self.improving_params)-2})"
-                self.improving_text.value = f"已选: {display}"
-                self.improving_text.color = ft.Colors.GREEN
+                self.improving_text.value = f"已选: {display}"  # type: ignore
+                self.improving_text.color = ft.Colors.GREEN  # type: ignore
             else:
-                self.improving_text.value = "未选择"
-                self.improving_text.color = ft.Colors.GREY
+                self.improving_text.value = "未选择"  # type: ignore
+                self.improving_text.color = ft.Colors.GREY  # type: ignore
         else:
             self.worsening_params = param_values or []
             if self.worsening_params:
                 display = ", ".join(self.worsening_params[:2])
                 if len(self.worsening_params) > 2:
                     display += f"...(+{len(self.worsening_params)-2})"
-                self.worsening_text.value = f"已选: {display}"
-                self.worsening_text.color = ft.Colors.GREEN
+                self.worsening_text.value = f"已选: {display}"  # type: ignore
+                self.worsening_text.color = ft.Colors.GREEN  # type: ignore
             else:
-                self.worsening_text.value = "未选择"
-                self.worsening_text.color = ft.Colors.GREY
+                self.worsening_text.value = "未选择"  # type: ignore
+                self.worsening_text.color = ft.Colors.GREY  # type: ignore
 
         self._page.update()
 
-    async def _on_analyze(self, e: ft.ControlEvent):
+    async def _on_analyze(self, e: ft.Event):
         """开始分析"""
         problem = self.problem_input.value.strip() if self.problem_input else ""
 
         # 至少需要问题描述或参数选择之一
         if not problem and not self.improving_params and not self.worsening_params:
-            self._page.show_snack_bar(
-                ft.SnackBar(content=ft.Text("请输入问题描述或选择参数"), duration=3000)
-            )
+            self._show_snack_bar("请输入问题描述或选择参数")
             return
 
         # 显示加载状态
-        self.loading_indicator.visible = True
-        self.analyze_btn.disabled = True
+        self.loading_indicator.visible = True  # type: ignore
+        self.analyze_btn.disabled = True  # type: ignore
         self._page.update()
 
         try:
@@ -535,42 +585,33 @@ class MatrixTab(TabContent):
 
         except Exception as ex:
             logger.error(f"分析失败: {ex}")
-            self._page.show_snack_bar(
-                ft.SnackBar(content=ft.Text(f"分析失败: {str(ex)}"), duration=3000)
-            )
+            self._show_snack_bar(f"分析失败: {str(ex)}")
         finally:
-            self.loading_indicator.visible = False
-            self.analyze_btn.disabled = False
+            self.loading_indicator.visible = False  # type: ignore
+            self.analyze_btn.disabled = False  # type: ignore
             self._page.update()
 
-    async def _on_brainstorm(self, e: ft.ControlEvent):
+    async def _on_brainstorm(self, e: ft.Event):
         """头脑风暴按钮点击处理"""
         # 检查AI是否可用
         from src.ai.ai_client import get_ai_manager
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
-            self._page.show_snack_bar(
-                ft.SnackBar(
-                    content=ft.Text("请先开启AI并配置API密钥"),
-                    duration=3000
-                )
-            )
+            self._show_snack_bar("请先开启AI并配置API密钥")
             return
 
         problem = self.problem_input.value.strip() if self.problem_input else ""
 
         if not problem:
-            self._page.show_snack_bar(
-                ft.SnackBar(content=ft.Text("请先输入问题描述"), duration=3000)
-            )
+            self._show_snack_bar("请先输入问题描述")
             return
 
-        # 显示思考中弹窗
-        self._show_brainstorm_dialog()
+        # 显示嵌入的加载指示器
+        self._show_brainstorm_loading()
 
         # 显示加载状态
-        self.loading_indicator.visible = True
-        self.brainstorm_btn.disabled = True
+        self.loading_indicator.visible = True  # type: ignore
+        self.brainstorm_btn.disabled = True  # type: ignore
         self._page.update()
 
         try:
@@ -627,12 +668,7 @@ class MatrixTab(TabContent):
             if not session.solutions or not has_structured_solutions:
                 # AI未返回有效结果，提示用户
                 logger.warning("AI未返回有效解决方案")
-                self._page.show_snack_bar(
-                    ft.SnackBar(
-                        content=ft.Text("⚠️ AI未返回有效解决方案，请检查网络或API配置"),
-                        duration=4000
-                    )
-                )
+                self._show_snack_bar("AI未返回有效解决方案，请检查网络或API配置")
                 return
 
             session.ai_enabled = True
@@ -643,97 +679,69 @@ class MatrixTab(TabContent):
 
             self._show_solutions_result(session, session.solutions, self.brainstorm_result_container)
 
-            self._page.show_snack_bar(
-                ft.SnackBar(
-                    content=ft.Text(f"💡 头脑风暴完成！生成 {len(session.solutions)} 个方案"),
-                    duration=3000
-                )
-            )
+            self._show_snack_bar(f"头脑风暴完成！生成 {len(session.solutions)} 个方案")
 
         except Exception as ex:
             logger.error(f"头脑风暴失败: {ex}")
             # AI调用失败，标记为未连接
             self._mark_ai_disconnected()
-            self._page.show_snack_bar(
-                ft.SnackBar(content=ft.Text(f"头脑风暴失败: {str(ex)}"), duration=3000)
-            )
+            self._show_snack_bar(f"头脑风暴失败: {str(ex)}")
         finally:
-            self.loading_indicator.visible = False
-            self.brainstorm_btn.disabled = False
-            self._close_brainstorm_dialog()
+            self.loading_indicator.visible = False  # type: ignore
+            self.brainstorm_btn.disabled = False  # type: ignore
+            self._hide_brainstorm_loading()
             self._page.update()
 
-    def _show_brainstorm_dialog(self):
-        """显示头脑风暴进行中的弹窗"""
-        self.brainstorm_dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("AI正在思考...", weight=ft.FontWeight.BOLD),
-            content=ft.Column(
-                controls=[
-                    ft.ProgressRing(width=40, height=40),
-                    ft.Container(height=10),
-                    ft.Text("正在基于TRIZ原理生成创新解决方案...", size=14)
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER
-            ),
-            actions=[],
-            actions_alignment=ft.MainAxisAlignment.CENTER
-        )
-        self._page.dialog = self.brainstorm_dialog
-        self.brainstorm_dialog.open = True
-        self._page.update()
+    def _show_brainstorm_loading(self):
+        """显示嵌入的头脑风暴加载指示器"""
+        self.brainstorm_result_container.content = self.brainstorm_loading
+        self.brainstorm_loading.visible = True
 
-    def _close_brainstorm_dialog(self):
-        """关闭头脑风暴弹窗"""
-        if self.brainstorm_dialog:
-            self.brainstorm_dialog.open = False
-            self._page.update()
-            self.brainstorm_dialog = None
+    def _hide_brainstorm_loading(self):
+        """隐藏嵌入的头脑风暴加载指示器"""
+        self.brainstorm_loading.visible = False
 
-    def _show_principles_result(self, session: AnalysisSession, principles: List, target_container: ft.Container = None):
+    def _show_principles_result(self, session: AnalysisSession, principles: List, target_container: Optional[ft.Container] = None):
         """显示矩阵查询结果（原理）"""
         self._current_matrix_session = session
         container = target_container or self.matrix_result_container
+        card_controls: List[ft.Control] = [
+            self._create_principle_card(p) for p in principles
+        ]
+        if principles:
+            card_controls.append(ft.Container(height=10))
+        else:
+            card_controls.append(ft.Text("暂无结果", size=12, color=ft.Colors.GREY))
         container.content = ft.ListView(
-            controls=[
-                self._create_principle_card(p) for p in principles
-            ] + [
-                ft.Container(height=10)
-            ] if principles else [
-                ft.Text("暂无结果", size=12, color=ft.Colors.GREY)
-            ],
+            controls=card_controls,
             spacing=8,
             expand=True
         )
         self._page.update()
 
-    def _show_solutions_result(self, session: AnalysisSession, solutions: List, target_container: ft.Container = None):
+    def _show_solutions_result(self, session: AnalysisSession, solutions: List, target_container: Optional[ft.Container] = None):
         """显示头脑风暴结果（解决方案）"""
         logger.info(f"_show_solutions_result called with {len(solutions)} solutions")
         self._current_brainstorm_session = session
         self._selected_solutions.clear()  # 清空选中状态
         container = target_container or self.brainstorm_result_container
 
+        card_controls: List[ft.Control] = []
         if solutions:
-            container.content = ft.ListView(
-                controls=[
-                    self._create_solution_card(s, idx, is_brainstorm=True)
-                    for idx, s in enumerate(solutions)
-                ] + [
-                    ft.Container(height=10),
-                    self._create_save_selected_button()
-                ],
-                spacing=8,
-                expand=True
-            )
+            card_controls = [
+                self._create_solution_card(s, idx, is_brainstorm=True)
+                for idx, s in enumerate(solutions)
+            ]
+            card_controls.append(ft.Container(height=10))
+            card_controls.append(self._create_save_selected_button())
         else:
-            container.content = ft.ListView(
-                controls=[
-                    ft.Text("暂无结果", size=12, color=ft.Colors.GREY)
-                ],
-                spacing=8,
-                expand=True
-            )
+            card_controls = [ft.Text("暂无结果", size=12, color=ft.Colors.GREY)]
+
+        container.content = ft.ListView(
+            controls=card_controls,
+            spacing=8,
+            expand=True
+        )
         self._page.update()
 
     def _create_save_selected_button(self) -> ft.Container:
@@ -742,24 +750,18 @@ class MatrixTab(TabContent):
             logger.info(f"save_selected called, selected: {self._selected_solutions}")
 
             if not self._selected_solutions:
-                self._page.show_snack_bar(
-                    ft.SnackBar(content=ft.Text("⚠️ 请先选择要保存的方案"), duration=2000)
-                )
+                self._show_snack_bar("请先选择要保存的方案")
                 return
 
             session = self._current_brainstorm_session
             if not session:
                 logger.error("session is None")
-                self._page.show_snack_bar(
-                    ft.SnackBar(content=ft.Text("⚠️ 会话数据不存在"), duration=2000)
-                )
+                self._show_snack_bar("会话数据不存在")
                 return
 
             if not session.solutions:
                 logger.error("session.solutions is empty")
-                self._page.show_snack_bar(
-                    ft.SnackBar(content=ft.Text("⚠️ 暂无解决方案"), duration=2000)
-                )
+                self._show_snack_bar("暂无解决方案")
                 return
 
             # 获取选中的解决方案
@@ -767,9 +769,7 @@ class MatrixTab(TabContent):
             logger.info(f"Selected solutions count: {len(selected)}")
 
             if not selected:
-                self._page.show_snack_bar(
-                    ft.SnackBar(content=ft.Text("⚠️ 选中的方案无效"), duration=2000)
-                )
+                self._show_snack_bar("选中的方案无效")
                 return
 
             try:
@@ -780,13 +780,9 @@ class MatrixTab(TabContent):
                 if existing_id:
                     success = self.storage.append_solutions(existing_id, selected)
                     if success:
-                        self._page.show_snack_bar(
-                            ft.SnackBar(content=ft.Text(f"✅ 已追加 {len(selected)} 个方案到历史记录"), duration=2000)
-                        )
+                        self._show_snack_bar(f"已追加 {len(selected)} 个方案到历史记录")
                     else:
-                        self._page.show_snack_bar(
-                            ft.SnackBar(content=ft.Text("❌ 追加失败，请查看日志"), duration=2000)
-                        )
+                        self._show_snack_bar("追加失败，请查看日志")
                 else:
                     from src.data.models import AnalysisSession as NewSession
                     new_session = NewSession(
@@ -799,18 +795,12 @@ class MatrixTab(TabContent):
                     )
                     success = self.storage.save_session(new_session)
                     if success:
-                        self._page.show_snack_bar(
-                            ft.SnackBar(content=ft.Text(f"✅ 已保存 {len(selected)} 个方案到历史记录"), duration=2000)
-                        )
+                        self._show_snack_bar(f"已保存 {len(selected)} 个方案到历史记录")
                     else:
-                        self._page.show_snack_bar(
-                            ft.SnackBar(content=ft.Text("❌ 保存失败，请查看日志"), duration=2000)
-                        )
+                        self._show_snack_bar("保存失败，请查看日志")
             except Exception as ex:
                 logger.error(f"保存失败: {ex}")
-                self._page.show_snack_bar(
-                    ft.SnackBar(content=ft.Text(f"❌ 保存异常: {str(ex)[:50]}"), duration=2000)
-                )
+                self._show_snack_bar(f"保存异常: {str(ex)[:50]}")
 
             # 清空选择
             self._selected_solutions.clear()
@@ -1161,18 +1151,6 @@ class MatrixTab(TabContent):
             spacing=2
         )
 
-    def _close_dialog(self):
-        """关闭弹窗"""
-        if hasattr(self, '_solutions_overlay') and self._solutions_overlay:
-            self._page.remove(self._solutions_overlay)
-            self._solutions_overlay = None
-        elif hasattr(self, '_detail_overlay') and self._detail_overlay:
-            self._page.remove(self._detail_overlay)
-            self._detail_overlay = None
-        elif self._page.dialog:
-            self._page.dialog.open = False
-            self._page.update()
-
     def _show_principle_detail_dialog(self, principle):
         """显示原理详情弹窗"""
         from ...data.models import InventivePrinciple
@@ -1300,9 +1278,7 @@ class MatrixTab(TabContent):
             actions_alignment=ft.MainAxisAlignment.END
         )
 
-        self._page.dialog = dialog
-        dialog.open = True
-        self._page.update()
+        self._page.show_dialog(dialog)  # type: ignore
 
     def _show_simple_detail_dialog(self, principle_id, principle_name, definition, examples, category):
         """显示简化版详情弹窗（用于Solution对象）"""
@@ -1377,9 +1353,7 @@ class MatrixTab(TabContent):
             actions_alignment=ft.MainAxisAlignment.END
         )
 
-        self._page.dialog = dialog
-        dialog.open = True
-        self._page.update()
+        self._page.show_dialog(dialog)  # type: ignore
 
     def _close_dialog(self):
         """关闭弹窗"""
@@ -1397,9 +1371,10 @@ class MatrixTab(TabContent):
                 pass
             self._detail_overlay = None
         # 关闭AlertDialog
-        if self._page.dialog:
-            self._page.dialog.open = False
-            self._page.update()
+        try:
+            self._page.pop_dialog()  # type: ignore
+        except:
+            pass
 
     def _get_category_color(self, category: str) -> str:
         """获取分类颜色"""

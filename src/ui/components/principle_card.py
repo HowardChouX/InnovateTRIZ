@@ -73,14 +73,14 @@ class PrincipleCard(ft.Container):
                     controls=[
                         CategoryBadge(category=self.category),
                         ft.Container(expand=True),
-                        ft.Icon(ft.icons.CHEVRON_RIGHT, size=16, color=ft.Colors.GREY),
+                        ft.Icon(ft.icons.Icons.ARROW_FORWARD, size=16, color=ft.Colors.GREY_600),
                     ],
                 ),
             ],
             spacing=6,
         )
 
-    def _handle_click(self, e: ft.ControlEvent):
+    def _handle_click(self, _):
         """处理点击事件"""
         if self.on_click_handler:
             self.on_click_handler(self.principle_id)

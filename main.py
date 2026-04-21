@@ -8,38 +8,42 @@ import asyncio
 import logging
 import sys
 import os
+from pathlib import Path
 from typing import Optional
 
 # 添加src目录到路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
+src_path = os.path.join(os.path.dirname(__file__), "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
 from src.config.constants import APP_NAME, APP_VERSION, COLORS
 from src.data.local_storage import LocalStorage
 from src.ai.ai_client import get_ai_manager
-from src.ai.connectivity import check_ai_connectivity, AIConnectivityDetector
 from src.config.settings import AppSettings
 from src.ui.app_shell import TRIZAppShell
 from src.ui.matrix_tab import MatrixTab
 from src.ui.principles_tab import PrinciplesTab
 from src.ui.settings_tab import SettingsTab
 
-# 配置日志
-import os
-from pathlib import Path
-
-# 确保日志目录存在
-log_dir = Path("logs")
-log_dir.mkdir(exist_ok=True)
-
-# 配置日志：同时输出到控制台和文件
+# 配置日志（仅控制台，避免Android文件权限问题）
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),  # 控制台
-        logging.FileHandler(log_dir / "triz_app.log", encoding="utf-8")  # 文件
+        logging.StreamHandler()  # 仅控制台
     ]
 )
+
+# 尝试添加文件日志处理器（Android上可能失败）
+try:
+    log_dir = Path.home() / ".config" / "triz-assistant" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    file_handler = logging.FileHandler(log_dir / "triz_app.log", encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
+except Exception:
+    pass  # Android上文件日志可能失败，使用控制台日志即可
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,6 +103,8 @@ class TRIZApp:
                     model=self.settings.ai_model
                 )
                 logger.info("AI管理器初始化完成")
+                # 静默测试AI连接
+                self.page.run_task(self._silent_test_ai_connection)
             else:
                 logger.info("AI管理器未初始化（无API密钥）")
 
@@ -120,6 +126,32 @@ class TRIZApp:
             logger.error(f"初始化组件失败: {e}")
             await self._show_error_page(f"初始化失败: {str(e)}")
 
+    async def _silent_test_ai_connection(self):
+        """静默测试AI连接"""
+        import time
+        from src.ai.ai_client import get_ai_manager
+        from src.ui.state import get_ai_state_manager
+
+        ai_manager = get_ai_manager()
+        if not ai_manager.is_enabled():
+            return
+
+        try:
+            start_time = time.time()
+            is_connected = await ai_manager.test_ai_connection()
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            ai_manager.set_connected(is_connected)
+            logger.info(f"AI静默连接测试完成: {'成功' if is_connected else '失败'}, 延迟: {elapsed_ms:.0f}ms")
+
+            # 通知AI状态变化
+            ai_state = get_ai_state_manager()
+            ai_state.update_status(ai_manager.is_enabled(), is_connected)
+
+        except Exception as e:
+            logger.error(f"AI静默连接测试失败: {e}")
+            ai_manager.set_connected(False)
+
     async def _show_main_interface(self):
         """显示主界面"""
         if not self.app_shell:
@@ -130,48 +162,11 @@ class TRIZApp:
             # 显示AppShell
             self.app_shell.show()
 
-            # 显示欢迎消息
-            await self._show_welcome_message()
-
             logger.info("主界面显示完成")
 
         except Exception as e:
             logger.error(f"显示主界面失败: {e}")
             await self._show_error_page(f"界面加载失败: {str(e)}")
-
-    async def _show_welcome_message(self):
-        """显示欢迎消息"""
-        welcome_text = f"欢迎使用{APP_NAME}！\n版本: {APP_VERSION}"
-
-        # 检查AI状态并测试联通性
-        ai_manager = get_ai_manager()
-        if ai_manager.is_enabled():
-            # 测试AI联通性
-            connectivity = await check_ai_connectivity()
-            # 更新全局连接状态
-            ai_manager.set_connected(connectivity.is_connected)
-            if connectivity.is_connected:
-                welcome_text += f"\n\n✅ AI已连接 ({connectivity.provider})"
-                if connectivity.latency_ms:
-                    welcome_text += f" - 延迟: {connectivity.latency_ms:.0f}ms"
-            else:
-                welcome_text += f"\n\n⚠️  AI连接失败: {connectivity.message}"
-                welcome_text += "\n请检查网络和API密钥设置"
-        else:
-            ai_manager.set_connected(False)
-            welcome_text += "\n\n⚠️  AI智能增强未启用（需要配置API密钥）"
-
-        # 刷新MatrixTab的AI按钮状态
-        if hasattr(self, 'matrix_tab') and self.matrix_tab:
-            self.matrix_tab._update_ai_buttons()
-
-        # 显示snackbar消息
-        self.page.snack_bar = ft.SnackBar(
-            content=ft.Text(welcome_text),
-            duration=4000
-        )
-        self.page.snack_bar.open = True
-        self.page.update()
 
     async def _show_error_page(self, error_message: str):
         """显示错误页面"""
@@ -246,24 +241,24 @@ def main():
     try:
         if args.mode == "web":
             # Web模式（用于测试）
-            ft.app(
-                target=TRIZApp().main,
+            ft.run(
+                TRIZApp().main,
                 view=ft.AppView.WEB_BROWSER,
                 port=args.port,
                 assets_dir="assets"
             )
         elif args.mode == "desktop":
             # 桌面模式
-            ft.app(
-                target=TRIZApp().main,
+            ft.run(
+                TRIZApp().main,
                 view=ft.AppView.FLET_APP,
                 assets_dir="assets"
             )
         else:
             # APK模式（移动应用）- 不需要指定view
             # 在Android/iOS上自动适配
-            ft.app(
-                target=TRIZApp().main,
+            ft.run(
+                TRIZApp().main,
                 assets_dir="assets"
             )
 

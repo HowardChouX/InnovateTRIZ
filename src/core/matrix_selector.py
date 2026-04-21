@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple, Dict
 import logging
 from ..data.models import MatrixQueryResult, PrincipleQueryResult
 from ..data.excel_loader import get_triz_data_loader
-from ..config.constants import ENGINEERING_PARAMETERS_39, INVENTIVE_PRINCIPLES
+from ..config.constants import INVENTIVE_PRINCIPLES
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class MatrixManager:
         self.matrices: Dict[str, ContradictionMatrix] = {}
         self.current_matrix_type = "39"
 
-    def get_matrix(self, matrix_type: str = None) -> ContradictionMatrix:
+    def get_matrix(self, matrix_type: Optional[str] = None) -> ContradictionMatrix:
         """
         获取指定类型的矛盾矩阵
 
@@ -288,7 +288,7 @@ class MatrixManager:
         """获取当前矩阵"""
         return self.get_matrix(self.current_matrix_type)
 
-    def get_available_matrix_types(self) -> List[Dict[str, str]]:
+    def get_available_matrix_types(self) -> List[Dict[str, str | bool]]:
         """获取可用的矩阵类型"""
         return [
             {"type": "39", "name": "39矛盾矩阵", "description": "标准39参数矛盾矩阵", "enabled": True},

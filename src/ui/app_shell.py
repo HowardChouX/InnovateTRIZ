@@ -79,7 +79,7 @@ class TRIZAppShell:
         )
 
         # 将所有Tab添加到页面
-        for tab_id, container in self._tab_registry.items():
+        for container in self._tab_registry.values():
             self.page.add(container)
 
         self.page.add(self._nav_bar)
@@ -89,9 +89,9 @@ class TRIZAppShell:
 
         logger.info("应用外壳显示完成")
 
-    def _on_nav_change(self, e: ft.ControlEvent):
+    def _on_nav_change(self, _):  # type: ignore
         """导航栏切换处理"""
-        index = e.control.selected_index
+        index = self._nav_bar.selected_index if self._nav_bar else 0
         tab_map = {
             0: ROUTE_MATRIX,
             1: ROUTE_PRINCIPLES,
@@ -103,21 +103,38 @@ class TRIZAppShell:
     def _switch_tab(self, tab_id: str):
         """切换Tab"""
         logger.info(f"_switch_tab called with: {tab_id}")
+
+        # 关闭所有打开的对话框
+        try:
+            while True:
+                closed = self.page.pop_dialog()
+                if not closed:
+                    break
+                logger.info(f"Closed dialog: {type(closed).__name__}")
+        except Exception as e:
+            logger.error(f"Error closing dialog: {e}")
+
         # 隐藏当前Tab
         if self._current_tab and self._current_tab in self._tab_registry:
+            logger.info(f"Hiding current tab: {self._current_tab}")
             self._tab_registry[self._current_tab].visible = False
 
         # 显示新Tab
         if tab_id in self._tab_registry:
+            logger.info(f"Showing tab: {tab_id}")
             self._tab_registry[tab_id].visible = True
             self._current_tab = tab_id
             logger.info(f"Switching to tab {tab_id}, container visible: {self._tab_registry[tab_id].visible}")
 
             # 调用Tab的on_show方法
             container = self._tab_registry[tab_id]
-            if container.content and hasattr(container.content, 'on_show'):
+            if isinstance(container.content, TabContent):
                 logger.info(f"Calling on_show for {tab_id}")
-                container.content.on_show()
+                try:
+                    container.content.on_show()
+                    logger.info(f"on_show for {tab_id} completed")
+                except Exception as e:
+                    logger.error(f"on_show for {tab_id} failed: {e}", exc_info=True)
 
         # 更新导航栏
         if self._nav_bar:
@@ -128,7 +145,9 @@ class TRIZAppShell:
             }
             self._nav_bar.selected_index = tab_to_index.get(tab_id, 0)
 
+        logger.info(f"About to call page.update() for {tab_id}")
         self.page.update()
+        logger.info(f"page.update() completed for {tab_id}")
         logger.info(f"切换到Tab: {tab_id} 完成")
 
     def get_current_tab(self) -> Optional[str]:
@@ -139,7 +158,7 @@ class TRIZAppShell:
         """刷新当前Tab内容"""
         if self._current_tab and self._current_tab in self._tab_registry:
             container = self._tab_registry[self._current_tab]
-            if container.content and hasattr(container.content, 'on_show'):
+            if isinstance(container.content, TabContent):
                 container.content.on_show()
             self.page.update()
             logger.info(f"刷新Tab: {self._current_tab}")
@@ -201,9 +220,9 @@ class AppShell(ft.NavigationBar):
             indicator_color=COLORS.get("primary", "#2196F3"),
         )
 
-    def _handle_tab_change(self, e: ft.ControlEvent):
+    def _handle_tab_change(self, _):  # type: ignore
         """处理Tab切换"""
-        index = e.control.selected_index
+        index = self.selected_index
         if index == 0:
             self.current_tab = self.TAB_MATRIX
         elif index == 1:

@@ -3,26 +3,20 @@ AI客户端模块
 支持DeepSeek API，兼容OpenRouter API
 """
 
-import os
-import asyncio
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, cast
 from datetime import datetime
 
 from openai import AsyncOpenAI, APIError, APITimeoutError, APIConnectionError
 
-from ..data.models import (
-    AIAnalysisRequest,
-    AIAnalysisResponse,
-    Solution
-)
+from ..data.models import AIAnalysisRequest, AIAnalysisResponse, Solution
 from ..config.constants import (
     DEFAULT_AI_MODEL,
     DEEPSEEK_API_BASE,
     OPENROUTER_API_BASE,
     INVENTIVE_PRINCIPLES,
     PRINCIPLE_CATEGORIES,
-    ENGINEERING_PARAMETERS_39
+    ENGINEERING_PARAMETERS_39,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,8 +25,13 @@ logger = logging.getLogger(__name__)
 class AIClient:
     """AI客户端"""
 
-    def __init__(self, api_key: Optional[str] = None, provider: str = "deepseek",
-                 base_url: Optional[str] = None, model: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        provider: str = "deepseek",
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
         """
         初始化AI客户端
 
@@ -58,12 +57,13 @@ class AIClient:
             if self.base_url:
                 base_url = self.base_url
             else:
-                base_url = DEEPSEEK_API_BASE if self.provider == "deepseek" else OPENROUTER_API_BASE
+                base_url = (
+                    DEEPSEEK_API_BASE
+                    if self.provider == "deepseek"
+                    else OPENROUTER_API_BASE
+                )
 
-            self.client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=base_url
-            )
+            self.client = AsyncOpenAI(api_key=self.api_key, base_url=base_url)
 
             # 如果没有指定模型，根据提供商设置默认模型
             if not self.model or self.model == DEFAULT_AI_MODEL:
@@ -74,7 +74,9 @@ class AIClient:
                 else:
                     self.model = "deepseek/deepseek-chat"
 
-            logger.info(f"AI客户端初始化成功，提供商: {self.provider}, 模型: {self.model}, URL: {base_url}")
+            logger.info(
+                f"AI客户端初始化成功，提供商: {self.provider}, 模型: {self.model}, URL: {base_url}"
+            )
 
         except Exception as e:
             logger.error(f"AI客户端初始化失败: {e}")
@@ -92,10 +94,11 @@ class AIClient:
 
         try:
             # 发送一个简单的测试请求
-            response = await self.client.chat.completions.create(
+            client = cast(AsyncOpenAI, self.client)
+            response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "Hello"}],
-                max_tokens=10
+                max_tokens=10,
             )
 
             success = response.choices[0].message.content is not None
@@ -106,7 +109,7 @@ class AIClient:
             logger.error(f"API连接测试失败: {e}")
             return False
 
-    async def detect_parameters(self, problem: str) -> Dict[str, str]:
+    async def detect_parameters(self, problem: str) -> Dict[str, Any]:
         """
         使用AI检测技术参数
 
@@ -159,26 +162,28 @@ JSON格式：
         try:
             start_time = datetime.now()
 
-            response = await self.client.chat.completions.create(
+            client = cast(AsyncOpenAI, self.client)
+            response = await client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0,
-                max_tokens=300
+                max_tokens=300,
             )
 
             processing_time = (datetime.now() - start_time).total_seconds()
 
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content or ""
             logger.info(f"AI原始响应: {content}")
 
             # 尝试解析JSON
             import json
+
             try:
-                json_start = content.find('{')
-                json_end = content.rfind('}') + 1
+                json_start = content.find("{")
+                json_end = content.rfind("}") + 1
                 if json_start >= 0 and json_end > json_start:
                     json_str = content[json_start:json_end]
                     result = json.loads(json_str)
@@ -201,7 +206,7 @@ JSON格式：
                     return {
                         "improving": improving,
                         "worsening": worsening,
-                        "explanation": result.get("explanation", "")
+                        "explanation": result.get("explanation", ""),
                     }
                 else:
                     logger.warning(f"未找到JSON: {content}")
@@ -210,15 +215,21 @@ JSON格式：
                 logger.error(f"JSON解析失败: {e}, 原始响应: {content}")
 
             # 如果JSON解析失败，使用备用提取
-            improving = self._extract_multiple_from_response(content, "improving", params_39)
-            worsening = self._extract_multiple_from_response(content, "worsening", params_39)
+            improving = self._extract_multiple_from_response(
+                content, "improving", params_39
+            )
+            worsening = self._extract_multiple_from_response(
+                content, "worsening", params_39
+            )
 
             if improving or worsening:
-                logger.info(f"备用提取成功: improving={improving}, worsening={worsening}")
+                logger.info(
+                    f"备用提取成功: improving={improving}, worsening={worsening}"
+                )
                 return {
                     "improving": improving,
                     "worsening": worsening,
-                    "explanation": "从AI响应中提取"
+                    "explanation": "从AI响应中提取",
                 }
 
             return {"improving": "", "worsening": "", "explanation": "AI未返回有效参数"}
@@ -236,7 +247,9 @@ JSON格式：
             logger.error(f"未知错误: {e}")
             return {"improving": "", "worsening": "", "error": str(e)}
 
-    def _extract_from_response(self, content: str, param_type: str, param_list: list) -> str:
+    def _extract_from_response(
+        self, content: str, param_type: str, param_list: list
+    ) -> str:
         """从AI响应中提取参数"""
         content_lower = content.lower()
 
@@ -261,7 +274,7 @@ JSON格式：
                 suffixes = ["消耗", "用", "问题", "率", "性"]
                 for suffix in suffixes:
                     if param_lower.endswith(suffix):
-                        base = param_lower[:-len(suffix)]
+                        base = param_lower[: -len(suffix)]
                         if base in content_lower:
                             found_params.append(param)
                             logger.info(f"模糊匹配: '{param}' (base: '{base}')")
@@ -299,7 +312,15 @@ JSON格式：
         # 优先参数类型映射
         if param_type == "improving":
             # 改善参数优先选择：能量、功率、速度等正向参数
-            priority_keywords = ["能量", "功率", "速度", "强度", "可靠性", "精度", "效率"]
+            priority_keywords = [
+                "能量",
+                "功率",
+                "速度",
+                "强度",
+                "可靠性",
+                "精度",
+                "效率",
+            ]
             for keyword in priority_keywords:
                 for param in unique_params:
                     if keyword in param:
@@ -307,20 +328,51 @@ JSON格式：
             return unique_params[0]
         else:
             # 恶化参数优先选择：重量、体积、复杂性等负向参数
-            priority_keywords = ["重量", "体积", "长度", "面积", "复杂性", "损失", "时间"]
+            priority_keywords = [
+                "重量",
+                "体积",
+                "长度",
+                "面积",
+                "复杂性",
+                "损失",
+                "时间",
+            ]
             for keyword in priority_keywords:
                 for param in unique_params:
                     if keyword in param:
                         return param
             return unique_params[-1]
 
-    def _extract_multiple_from_response(self, content: str, param_type: str, param_list: list) -> List[str]:
+    def _extract_multiple_from_response(
+        self, content: str, param_type: str, param_list: list
+    ) -> List[str]:
         """从AI响应中提取多个参数"""
         content_lower = content.lower()
 
         # 定义参数类型映射
-        improving_keywords = ["能量", "功率", "速度", "强度", "可靠性", "精度", "效率", "生产率", "面积", "稳定性"]
-        worsening_keywords = ["重量", "长度", "复杂性", "损失", "时间", "应力", "压力", "有害因素", "体积"]
+        improving_keywords = [
+            "能量",
+            "功率",
+            "速度",
+            "强度",
+            "可靠性",
+            "精度",
+            "效率",
+            "生产率",
+            "面积",
+            "稳定性",
+        ]
+        worsening_keywords = [
+            "重量",
+            "长度",
+            "复杂性",
+            "损失",
+            "时间",
+            "应力",
+            "压力",
+            "有害因素",
+            "体积",
+        ]
 
         # 找所有在内容中的参数
         param_positions = []  # (param, position, context)
@@ -347,8 +399,34 @@ JSON格式：
 
         for param, pos, context in param_positions:
             # 检查上下文中是否有改善/恶化的标记
-            improving_markers = ["improve", "increase", "increase", "提高", "增加", "改善", "更多", "larger", "bigger", "more"]
-            worsening_markers = ["decrease", "reduce", "reduce", "降低", "减少", "恶化", "less", "smaller", "low", "keep", "avoid", "重量", "体积", "长度"]
+            improving_markers = [
+                "improve",
+                "increase",
+                "increase",
+                "提高",
+                "增加",
+                "改善",
+                "更多",
+                "larger",
+                "bigger",
+                "more",
+            ]
+            worsening_markers = [
+                "decrease",
+                "reduce",
+                "reduce",
+                "降低",
+                "减少",
+                "恶化",
+                "less",
+                "smaller",
+                "low",
+                "keep",
+                "avoid",
+                "重量",
+                "体积",
+                "长度",
+            ]
 
             is_improving = False
             is_worsening = False
@@ -395,7 +473,17 @@ JSON格式：
         else:
             # 恶化参数：选择负向参数，排除能量类
             result = []
-            for kw in ["重量", "体积", "长度", "复杂性", "损失", "时间", "应力", "压力", "有害因素"]:
+            for kw in [
+                "重量",
+                "体积",
+                "长度",
+                "复杂性",
+                "损失",
+                "时间",
+                "应力",
+                "压力",
+                "有害因素",
+            ]:
                 for p in worsening_candidates:
                     if kw in p and p not in result:
                         # 排除能量类参数，它们应该是改善参数
@@ -403,8 +491,9 @@ JSON格式：
                             result.append(p)
             return result[:3] if result else []
 
-    async def generate_solutions(self,
-                                request: AIAnalysisRequest) -> AIAnalysisResponse:
+    async def generate_solutions(
+        self, request: AIAnalysisRequest
+    ) -> AIAnalysisResponse:
         """
         生成AI解决方案
 
@@ -416,9 +505,7 @@ JSON格式：
         """
         if not self.is_available():
             return AIAnalysisResponse(
-                success=False,
-                solutions=[],
-                error_message="AI服务不可用"
+                success=False, solutions=[], error_message="AI服务不可用"
             )
 
         # 构建提示词
@@ -427,11 +514,12 @@ JSON格式：
         try:
             start_time = datetime.now()
 
-            response = await self.client.chat.completions.create(
+            client = cast(AsyncOpenAI, self.client)
+            response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,  # 稍高的温度以获得创造性
-                max_tokens=2000
+                max_tokens=2000,
             )
 
             processing_time = (datetime.now() - start_time).total_seconds()
@@ -439,51 +527,41 @@ JSON格式：
             content = response.choices[0].message.content
 
             # 解析解决方案
-            solutions = self._parse_solutions(content, request.principle_ids)
+            solutions = self._parse_solutions(
+                content or "", request.principle_ids or []
+            )
 
-            logger.info(f"生成 {len(solutions)} 个解决方案，耗时: {processing_time:.2f}s")
+            logger.info(
+                f"生成 {len(solutions)} 个解决方案，耗时: {processing_time:.2f}s"
+            )
 
             return AIAnalysisResponse(
-                success=True,
-                solutions=solutions,
-                processing_time=processing_time
+                success=True, solutions=solutions, processing_time=processing_time
             )
 
         except APITimeoutError:
             error_msg = "AI请求超时，请检查网络连接"
             logger.error(error_msg)
             return AIAnalysisResponse(
-                success=False,
-                solutions=[],
-                error_message=error_msg,
-                processing_time=0
+                success=False, solutions=[], error_message=error_msg, processing_time=0
             )
         except APIConnectionError:
             error_msg = "AI连接错误，请检查网络设置"
             logger.error(error_msg)
             return AIAnalysisResponse(
-                success=False,
-                solutions=[],
-                error_message=error_msg,
-                processing_time=0
+                success=False, solutions=[], error_message=error_msg, processing_time=0
             )
         except APIError as e:
             error_msg = f"AI服务错误: {str(e)}"
             logger.error(error_msg)
             return AIAnalysisResponse(
-                success=False,
-                solutions=[],
-                error_message=error_msg,
-                processing_time=0
+                success=False, solutions=[], error_message=error_msg, processing_time=0
             )
         except Exception as e:
             error_msg = f"未知错误: {str(e)}"
             logger.error(error_msg)
             return AIAnalysisResponse(
-                success=False,
-                solutions=[],
-                error_message=error_msg,
-                processing_time=0
+                success=False, solutions=[], error_message=error_msg, processing_time=0
             )
 
     def _build_solution_prompt(self, request: AIAnalysisRequest) -> str:
@@ -496,10 +574,12 @@ JSON格式：
             improving_param=request.improving_param or "",
             worsening_param=request.worsening_param or "",
             principles=request.principle_ids or [],
-            solution_count=request.solution_count
+            solution_count=request.solution_count,
         )
 
-    def _parse_solutions(self, content: str, principle_ids: List[int]) -> List[Solution]:
+    def _parse_solutions(
+        self, content: str, principle_ids: List[int]
+    ) -> List[Solution]:
         """解析AI返回的解决方案"""
         solutions = []
 
@@ -511,15 +591,15 @@ JSON格式：
             logger.info(f"AI原始响应: {content[:1500]}")
 
             # 策略1: 尝试直接解析整个JSON数组
-            json_start = content.find('[')
-            json_end = content.rfind(']') + 1
+            json_start = content.find("[")
+            json_end = content.rfind("]") + 1
 
             if json_start >= 0 and json_end > json_start:
                 json_str = content[json_start:json_end]
 
                 # 清理常见问题
-                json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)  # 尾随逗号
-                json_str = re.sub(r'\s+', ' ', json_str)  # 压缩空白
+                json_str = re.sub(r",(\s*[}\]])", r"\1", json_str)  # 尾随逗号
+                json_str = re.sub(r"\s+", " ", json_str)  # 压缩空白
 
                 try:
                     data = json.loads(json_str)
@@ -541,7 +621,9 @@ JSON格式：
                             if isinstance(data, list):
                                 logger.info(f"截断修复成功: 解析{len(data)}个解决方案")
                                 for item in data:
-                                    sol = self._parse_single_solution(item, principle_ids)
+                                    sol = self._parse_single_solution(
+                                        item, principle_ids
+                                    )
                                     if sol:
                                         solutions.append(sol)
                                 if solutions:
@@ -552,15 +634,15 @@ JSON格式：
             # 策略2: 逐个提取JSON对象
             logger.info("尝试策略2: 逐个提取JSON对象")
             # 匹配 { ... } 模式
-            pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
             matches = re.findall(pattern, content)
 
             for match in matches:
                 try:
                     # 尝试解析单个对象
-                    cleaned = re.sub(r',(\s*[}\]])', r'\1', match)
+                    cleaned = re.sub(r",(\s*[}\]])", r"\1", match)
                     item = json.loads(cleaned)
-                    if isinstance(item, dict) and 'principle_id' in item:
+                    if isinstance(item, dict) and "principle_id" in item:
                         sol = self._parse_single_solution(item, principle_ids)
                         if sol:
                             solutions.append(sol)
@@ -588,15 +670,17 @@ JSON格式：
         Returns:
             (是否修复成功, 修复后的JSON字符串)
         """
-        if json_str.startswith('[') and not json_str.strip().endswith(']'):
-            last_obj_end = json_str.rfind('},')
+        if json_str.startswith("[") and not json_str.strip().endswith("]"):
+            last_obj_end = json_str.rfind("},")
             if last_obj_end > 0:
-                fixed = json_str[:last_obj_end + 1] + ']'
+                fixed = json_str[: last_obj_end + 1] + "]"
                 logger.info(f"JSON被截断，尝试修复为{len(fixed)}字符")
                 return True, fixed
         return False, None
 
-    def _parse_single_solution(self, item: dict, principle_ids: List[int]) -> Optional[Solution]:
+    def _parse_single_solution(
+        self, item: dict, principle_ids: List[int]
+    ) -> Optional[Solution]:
         """解析单个解决方案对象"""
         import json
         from ..config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
@@ -632,8 +716,10 @@ JSON格式：
                 examples=cross_domain_cases or item.get("examples", []),
                 technical_solution=technical_solution,
                 innovation_point=innovation_point,
-                cross_domain_cases=cross_domain_cases if isinstance(cross_domain_cases, list) else [],
-                expected_effect=expected_effect
+                cross_domain_cases=(
+                    cross_domain_cases if isinstance(cross_domain_cases, list) else []
+                ),
+                expected_effect=expected_effect,
             )
         except Exception as e:
             logger.warning(f"解析单个解决方案失败: {e}")
@@ -642,6 +728,7 @@ JSON格式：
     def _fallback_parse(self, content: str, principle_ids: List[int]) -> List[Solution]:
         """最后的备选解析方法 - 文本提取"""
         import re
+
         solutions = []
         from .prompts.templates import INVENTIVE_PRINCIPLES
 
@@ -656,20 +743,27 @@ JSON格式：
 
         for i, pid in enumerate(ids[:5]):
             pid_int = int(pid)
-            name = names[i] if i < len(names) else INVENTIVE_PRINCIPLES.get(pid_int, f"原理{pid_int}")
+            name = (
+                str(names[i])
+                if i < len(names)
+                else INVENTIVE_PRINCIPLES.get(pid_int, f"原理{pid_int}")
+            )
             tech = techs[i] if i < len(techs) else ""
 
             if tech and len(tech) > 20:
-                solutions.append(Solution(
-                    principle_id=pid_int,
-                    principle_name=name,
-                    description=tech[:200],
-                    technical_solution=tech[:200],
-                    confidence=0.7,
-                    is_ai_generated=True,
-                    category="物理"
-                ))
+                solutions.append(
+                    Solution(
+                        principle_id=pid_int,
+                        principle_name=name,  # type: ignore
+                        description=tech[:200],
+                        technical_solution=tech[:200],
+                        confidence=0.7,
+                        is_ai_generated=True,
+                        category="物理",
+                    )
+                )
 
+        return solutions
 
     def _create_default_solutions(self, principle_ids: List[int]) -> List[Solution]:
         """创建默认解决方案（当AI解析失败时）"""
@@ -693,7 +787,7 @@ JSON格式：
                     confidence=0.7,
                     is_ai_generated=True,
                     category=category,
-                    examples=[f"{principle_name}的典型应用案例"]
+                    examples=[f"{principle_name}的典型应用案例"],
                 )
 
                 solutions.append(solution)
@@ -706,23 +800,25 @@ class AIManager:
 
     def __init__(self):
         self.client = None
-        self.config = {
-            "provider": "deepseek",
-            "api_key": None,
-            "enabled": False
-        }
+        self.config = {"provider": "deepseek", "api_key": None, "enabled": False}
         self._is_connected = False  # 缓存实际连接状态
 
-    def initialize(self, api_key: Optional[str] = None, provider: str = "deepseek",
-                   base_url: Optional[str] = None, model: Optional[str] = None):
+    def initialize(
+        self,
+        api_key: Optional[str] = None,
+        provider: str = "deepseek",
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
         """初始化AI管理器"""
         if api_key:
             self.config["api_key"] = api_key
             self.config["provider"] = provider
             self.config["enabled"] = True
 
-            self.client = AIClient(api_key=api_key, provider=provider,
-                                   base_url=base_url, model=model)
+            self.client = AIClient(
+                api_key=api_key, provider=provider, base_url=base_url, model=model
+            )
             logger.info(f"AI管理器初始化，提供商: {provider}, 模型: {model}")
         else:
             self.config["enabled"] = False
@@ -731,10 +827,14 @@ class AIManager:
 
     def is_enabled(self) -> bool:
         """检查AI是否启用"""
-        return self.config["enabled"] and self.client is not None and self.client.is_available()
+        return (
+            self.config["enabled"]
+            and self.client is not None
+            and self.client.is_available()
+        )
 
     def is_connected(self) -> bool:
-        """检查AI是否实际连接成功（需要先调用test_connectivity更新状态）"""
+        """检查AI是否已连接"""
         return self._is_connected
 
     def set_connected(self, connected: bool):
@@ -751,7 +851,8 @@ class AIManager:
             return False
 
         try:
-            return await self.client.test_connection()
+            client = cast(AIClient, self.client)
+            return await client.test_connection()
         except Exception as e:
             logger.error(f"测试AI连接失败: {e}")
             return False
@@ -764,3 +865,4 @@ ai_manager = AIManager()
 def get_ai_manager() -> AIManager:
     """获取全局AI管理器"""
     return ai_manager
+

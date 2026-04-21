@@ -3,6 +3,7 @@
 使用SQLite数据库存储分析会话和解决方案
 """
 
+import os
 import sqlite3
 import json
 import logging
@@ -12,14 +13,14 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .models import AnalysisSession, Solution, AppConfig
+from .models import AnalysisSession, Solution
 
 logger = logging.getLogger(__name__)
 
 
 def _is_android() -> bool:
     """检测是否运行在Android环境"""
-    if sys.platform == "android":
+    if sys.platform == "android":  # type: ignore[comparison-overlap]
         return True
     if "ANDROID" in __import__("os").environ.get("ANDROID_ROOT", ""):
         return True
@@ -29,7 +30,12 @@ def _is_android() -> bool:
 class LocalStorage:
     """本地存储管理器"""
 
-    def __init__(self, db_path: str = "triz_sessions.db"):
+    def __init__(self, db_path: str = None):
+        # 使用统一的存储路径
+        if db_path is None:
+            storage_dir = Path.home() / ".config" / "triz-assistant"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            db_path = str(storage_dir / "triz_sessions.db")
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self.max_history_items = 100  # 最大历史记录数量
@@ -37,6 +43,11 @@ class LocalStorage:
     def initialize(self):
         """初始化数据库"""
         try:
+            # 确保数据库目录存在
+            db_dir = os.path.dirname(self.db_path)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
+
             self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self.conn.row_factory = sqlite3.Row  # 启用行工厂
 
@@ -60,6 +71,7 @@ class LocalStorage:
 
     def _create_tables(self):
         """创建数据库表"""
+        assert self.conn is not None, "数据库未初始化"
         cursor = self.conn.cursor()
 
         # 分析会话表
