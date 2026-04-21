@@ -60,17 +60,17 @@ class TRIZAppShell:
                 ft.NavigationBarDestination(
                     icon=ft.icons.Icons.GRID_ON,
                     selected_icon=ft.icons.Icons.GRID_ON,
-                    label="矛盾矩阵"
+                    label="矛盾矩阵",
                 ),
                 ft.NavigationBarDestination(
                     icon=ft.icons.Icons.LIGHTBULB_OUTLINE,
                     selected_icon=ft.icons.Icons.LIGHTBULB,
-                    label="发明原理"
+                    label="发明原理",
                 ),
                 ft.NavigationBarDestination(
                     icon=ft.icons.Icons.SETTINGS,
                     selected_icon=ft.icons.Icons.SETTINGS,
-                    label="全局设置"
+                    label="全局设置",
                 ),
             ],
             on_change=self._on_nav_change,
@@ -124,7 +124,9 @@ class TRIZAppShell:
             logger.info(f"Showing tab: {tab_id}")
             self._tab_registry[tab_id].visible = True
             self._current_tab = tab_id
-            logger.info(f"Switching to tab {tab_id}, container visible: {self._tab_registry[tab_id].visible}")
+            logger.info(
+                f"Switching to tab {tab_id}, container visible: {self._tab_registry[tab_id].visible}"
+            )
 
             # 调用Tab的on_show方法
             container = self._tab_registry[tab_id]
@@ -202,17 +204,17 @@ class AppShell(ft.NavigationBar):
                 ft.NavigationBarDestination(
                     icon=ft.icons.Icons.GRID_ON,
                     selected_icon=ft.icons.Icons.GRID_ON,
-                    label="39矛盾矩阵"
+                    label="39矛盾矩阵",
                 ),
                 ft.NavigationBarDestination(
                     icon=ft.icons.Icons.LIGHTBULB_OUTLINE,
                     selected_icon=ft.icons.Icons.LIGHTBULB,
-                    label="40发明原理"
+                    label="40发明原理",
                 ),
                 ft.NavigationBarDestination(
                     icon=ft.icons.Icons.SETTINGS,
                     selected_icon=ft.icons.Icons.SETTINGS,
-                    label="全局设置"
+                    label="全局设置",
                 ),
             ],
             on_change=self._handle_tab_change,

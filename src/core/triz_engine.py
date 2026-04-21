@@ -6,15 +6,14 @@
 import logging
 import random
 from functools import lru_cache
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 from datetime import datetime
 
 from ..data.models import (
     Solution,
     AnalysisSession,
     AIAnalysisRequest,
-    AIAnalysisResponse,
-    MatrixQueryResult
+    AIAnalysisResponse
 )
 from ..config.constants import (
     INVENTIVE_PRINCIPLES,
@@ -235,7 +234,7 @@ class LocalTRIZEngine:
         # 限制数量
         actual_count = min(count, len(principle_ids) * 2)
 
-        for i in range(actual_count):
+        for _ in range(actual_count):
             # 选择原理（优先使用提供的原理）
             if principle_ids:
                 principle_id = random.choice(principle_ids)
@@ -476,7 +475,7 @@ class LocalTRIZEngine:
 
         return enhanced
 
-    def _enhance_description(self, description: str, principle: str, problem: str) -> str:
+    def _enhance_description(self, description: str, _principle: str, problem: str) -> str:
         """增强描述"""
         # 简单的增强逻辑
         enhancements = [
@@ -588,7 +587,7 @@ class TRIZEngine:
         improving_param: Optional[str],
         worsening_param: Optional[str],
         principle_ids: List[int],
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable[[int, int], None]] = None
     ) -> List[Solution]:
         """
         遍历方式生成解决方案（每个原理单独调用AI）

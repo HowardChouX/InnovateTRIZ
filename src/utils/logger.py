@@ -12,13 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 from functools import wraps
-import threading
 import platform
 from logging.handlers import RotatingFileHandler
-
-# 全局日志配置锁
-_config_lock = threading.Lock()
-
 
 def is_android() -> bool:
     """统一Android环境检测"""
@@ -97,8 +92,8 @@ class TRIZLogger:
         self._initialized = True
 
         self._loggers: Dict[str, logging.Logger] = {}
-        self._main_logger: Optional[logging.Logger] = None
-        self._test_logger: Optional[logging.Logger] = None
+        self._main_logger: logging.Logger = None  # type: ignore[assignment]
+        self._test_logger: logging.Logger = None  # type: ignore[assignment]
         self._log_buffer: list = []
         self._max_buffer_size = 1000
         self._is_debug_mode = False
@@ -233,7 +228,7 @@ class TRIZLogger:
         else:
             self._main_logger.info(f"[STATE] {obj_name}: {state}")
 
-    def log_api_call(self, api_name: str, params: Dict, result: Any = None, error: str = None):
+    def log_api_call(self, api_name: str, params: Dict, result: Any = None, error: Optional[str] = None):
         """记录API调用"""
         if error:
             self._main_logger.error(f"[API] {api_name} FAILED: {error}")
@@ -287,7 +282,6 @@ def log_call(func):
     def wrapper(*args, **kwargs):
         logger = get_logger(func.__module__)
         func_name = f"{func.__module__}.{func.__name__}"
-        params = kwargs if kwargs else None
         logger.debug(f"[CALL] {func_name}(args={len(args)}, kwargs={list(kwargs.keys()) if kwargs else None})")
         try:
             result = func(*args, **kwargs)

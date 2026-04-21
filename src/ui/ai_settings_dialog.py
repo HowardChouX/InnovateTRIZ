@@ -4,7 +4,7 @@ AI设置对话框
 
 import flet as ft
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from ..config.constants import COLORS
 
@@ -19,7 +19,7 @@ class AISettingsDialog:
         self.on_settings_changed = on_settings_changed
 
         # 当前设置
-        self.settings = {
+        self.settings: dict[str, Any] = {
             "provider": "deepseek",
             "api_key": "",
             "base_url": "https://api.deepseek.com/v1",
@@ -61,7 +61,6 @@ class AISettingsDialog:
         """加载当前设置（在打开对话框时调用，解密所有供应商密钥到内存字典）"""
         from src.config.settings import get_app_settings
         from src.config.settings import _simple_decrypt
-        import base64
 
         # AppSettings 是单例
         settings = get_app_settings()

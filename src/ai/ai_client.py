@@ -100,7 +100,7 @@ def fuzzy_match_param(param: str, param_list: list) -> str:
     }
     for keyword, candidates in keywords_map.items():
         if keyword in param_lower:
-            for candidate in candidates:
+            for _candidate in candidates:
                 for p in param_list:
                     if keyword in p.lower():
                         return p
@@ -349,7 +349,7 @@ JSON格式：
         # 例如："能量消耗" -> "能量"，"运动物体用" -> "运动物体"
         if not found_params:
             # 从content中提取可能匹配的片段（取150字符窗口）
-            for i, param in enumerate(param_list):
+            for param in param_list:
                 param_lower = param.lower()
                 idx = content_lower.find(param_lower)
                 if idx != -1:
@@ -483,7 +483,7 @@ JSON格式：
         improving_candidates = []
         worsening_candidates = []
 
-        for param, pos, context in param_positions:
+        for param, _pos, _context in param_positions:
             # 检查上下文中是否有改善/恶化的标记
             improving_markers = [
                 "improve",
@@ -518,12 +518,12 @@ JSON格式：
             is_worsening = False
 
             for marker in improving_markers:
-                if marker in context:
+                if marker in _context:
                     is_improving = True
                     break
 
             for marker in worsening_markers:
-                if marker in context:
+                if marker in _context:
                     is_worsening = True
                     break
 
@@ -818,10 +818,9 @@ JSON格式：
         return False, None
 
     def _parse_single_solution(
-        self, item: dict, principle_ids: List[int]
+        self, item: dict, _principle_ids: List[int]
     ) -> Optional[Solution]:
         """解析单个解决方案对象"""
-        import json
         from ..config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
 
         try:
@@ -864,7 +863,7 @@ JSON格式：
             logger.warning(f"解析单个解决方案失败: {e}")
             return None
 
-    def _fallback_parse(self, content: str, principle_ids: List[int]) -> List[Solution]:
+    def _fallback_parse(self, content: str, _principle_ids: List[int]) -> List[Solution]:
         """最后的备选解析方法 - 文本提取"""
         import re
 
