@@ -6,7 +6,7 @@
 from typing import List, Optional, Tuple, Dict
 import logging
 from ..data.models import MatrixQueryResult, PrincipleQueryResult
-from ..data.excel_loader import get_triz_data_loader
+from ..data.triz_constants import get_triz_data_loader
 from ..config.constants import INVENTIVE_PRINCIPLES
 
 logger = logging.getLogger(__name__)

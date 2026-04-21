@@ -14,10 +14,10 @@
 | 问题 | 文件 | 描述 | 影响 |
 |------|------|------|------|
 | N+1查询问题 | local_storage.py:583 | `export_all_sessions`一次加载10000条 | 性能瓶颈 |
-| 矩阵复制开销 | excel_loader.py:1265 | 每次调用`get_contradiction_matrix()`复制1189条 | 内存浪费 |
+| 矩阵复制开销 | triz_constants.py:1265 | 每次调用`get_contradiction_matrix()`复制1189条 | 内存浪费 |
 | 无缓存单例 | principle_service.py:666-696 | 每次实例化重载658行数据 | 启动慢 |
 | 未使用矩阵结果 | triz_engine.py:547-548 | 注释代码，未实现矩阵查询 | 功能缺失 |
-| 矩阵匹配重复 | matrix_selector.py vs excel_loader.py | 两者都有find_solutions逻辑 | 代码重复 |
+| 矩阵匹配重复 | matrix_selector.py vs triz_constants.py | 两者都有find_solutions逻辑 | 代码重复 |
 
 ### UI模块问题 (优先级: P2)
 | 问题 | 文件 | 描述 | 影响 |
@@ -39,14 +39,14 @@ Phase 1: 依赖与配置修复 (P0)
   └─ 1.3 统一39参数格式 (列表/字典二选一)
 
 Phase 2: 核心性能优化 (P1)
-  ├─ 2.1 excel_loader 缓存优化
+  ├─ 2.1 triz_constants 缓存优化
   ├─ 2.2 principle_service 单例缓存
   ├─ 2.3 local_storage N+1 查询修复
   └─ 2.4 triz_engine 矩阵查询集成
 
 Phase 3: 代码重复消除 (P2)
   ├─ 3.1 提取共享 _get_category_color
-  ├─ 3.2 消除 matrix_selector 与 excel_loader 重复
+  ├─ 3.2 消除 matrix_selector 与 triz_constants 重复
   └─ 3.3 UI重复组件抽象
 
 Phase 4: 清理占位符 (P2)
@@ -153,11 +153,11 @@ assert params == ENGINEERING_PARAMETERS_39
 
 ---
 
-### Phase 2.1: excel_loader 缓存优化
+### Phase 2.1: triz_constants 缓存优化
 
 **问题**: `get_contradiction_matrix()` 每次调用返回 `.copy()` 创建新字典
 
-**修改文件**: `src/data/excel_loader.py`
+**修改文件**: `src/data/triz_constants.py`
 
 **当前代码** (行1262-1266):
 ```python
@@ -391,13 +391,13 @@ assert get_category_color("未知") == "#757575"  # 默认值
 
 ---
 
-### Phase 3.2: 消除 matrix_selector 与 excel_loader 重复
+### Phase 3.2: 消除 matrix_selector 与 triz_constants 重复
 
 **问题**: 两者都有 `find_solutions` 逻辑
 
 **修改文件**:
 - `src/core/matrix_selector.py`
-- `src/data/excel_loader.py`
+- `src/data/triz_constants.py`
 
 **修改方案**:
 `ContradictionMatrix` 直接委托给 `TRIZDataLoader`:
@@ -600,7 +600,7 @@ mypy src/
 | 1.1 | SDK版本锁定 | 15分钟 |
 | 1.2 | URL配置修复 | 30分钟 |
 | 1.3 | 参数格式统一 | 1小时 |
-| 2.1 | excel_loader缓存 | 30分钟 |
+| 2.1 | triz_constants缓存 | 30分钟 |
 | 2.2 | principle_service缓存 | 20分钟 |
 | 2.3 | local_storage优化 | 1小时 |
 | 2.4 | triz_engine集成 | 1小时 |
@@ -622,7 +622,7 @@ mypy src/
 2. `/home/chou/InnovateTRIZ/triz-app/src/config/settings.py` - URL配置
 3. `/home/chou/InnovateTRIZ/triz-app/src/config/constants.py` - 参数定义
 4. `/home/chou/InnovateTRIZ/triz-app/src/ai/prompts/templates.py` - 参数格式
-5. `/home/chou/InnovateTRIZ/triz-app/src/data/excel_loader.py` - 数据加载
+5. `/home/chou/InnovateTRIZ/triz-app/src/data/triz_constants.py` - 数据加载
 6. `/home/chou/InnovateTRIZ/triz-app/src/core/principle_service.py` - 单例缓存
 7. `/home/chou/InnovateTRIZ/triz-app/src/data/local_storage.py` - N+1查询
 8. `/home/chou/InnovateTRIZ/triz-app/src/core/triz_engine.py` - 矩阵集成

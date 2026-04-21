@@ -104,15 +104,17 @@ class TRIZAppShell:
         """切换Tab"""
         logger.info(f"_switch_tab called with: {tab_id}")
 
-        # 关闭所有打开的对话框
-        try:
-            while True:
-                closed = self.page.pop_dialog()
-                if not closed:
-                    break
-                logger.info(f"Closed dialog: {type(closed).__name__}")
-        except Exception as e:
-            logger.error(f"Error closing dialog: {e}")
+        # 关闭所有打开的对话框（安全方式，避免无限循环）
+        dialogs_closed = 0
+        for _ in range(10):
+            try:
+                self.page.pop_dialog()
+                dialogs_closed += 1
+                logger.info("Closed dialog")
+            except Exception:
+                break
+        if dialogs_closed == 0:
+            logger.debug("No dialogs to close")
 
         # 隐藏当前Tab
         if self._current_tab and self._current_tab in self._tab_registry:

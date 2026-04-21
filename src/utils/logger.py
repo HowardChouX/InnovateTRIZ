@@ -19,9 +19,7 @@ def is_android() -> bool:
     """统一Android环境检测"""
     if sys.platform == "android":
         return True
-    if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
-        return True
-    if "ANDROID_DATA" in os.environ:
+    if os.getenv("FLET_PLATFORM") == "android":
         return True
     return False
 
@@ -52,16 +50,24 @@ BACKUP_COUNT = 3
 
 def _get_log_dir() -> Path:
     """获取日志目录路径（兼容Android）"""
-    if is_android():
-        # Android 环境
-        app_data = os.getenv("FLET_APP_STORAGE_DATA")
-        if app_data:
-            return Path(app_data) / "logs"
-        return Path("/data/data/com.example.triz/files/logs")
-    else:
-        # 桌面环境
-        config_dir = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
-        return Path(config_dir) / "triz-assistant" / "logs"
+    # 优先使用 FLET_APP_STORAGE_DATA
+    app_data = os.getenv("FLET_APP_STORAGE_DATA")
+    if app_data:
+        log_dir = Path(app_data) / "logs"
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+            return log_dir
+        except Exception:
+            pass
+
+    # 桌面环境回退
+    config_dir = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+    log_dir = Path(config_dir) / "triz-assistant" / "logs"
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return log_dir
 
 
 def _get_log_file_path() -> Path:

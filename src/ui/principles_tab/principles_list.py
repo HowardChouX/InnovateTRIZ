@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Callable, List
 
 from ..app_shell import TabContent
-from ...config.constants import COLORS, PRINCIPLE_CATEGORIES
+from ...config.constants import COLORS, PRINCIPLE_CATEGORIES, CATEGORY_COLORS
 from ...core.principle_service import get_principle_service
 from ...data.models import InventivePrinciple
 
@@ -61,11 +61,11 @@ class PrinciplesTab(TabContent):
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.icons.Icons.LIGHTBULB, color=COLORS["primary"], size=28),
-                    ft.Text("40发明原理", size=20, weight=ft.FontWeight.BOLD)
+                    ft.Text("40发明原理", size=20, weight=ft.FontWeight.BOLD),
                 ],
-                alignment=ft.MainAxisAlignment.START
+                alignment=ft.MainAxisAlignment.START,
             ),
-            padding=15
+            padding=15,
         )
 
         # 分类筛选
@@ -77,42 +77,39 @@ class PrinciplesTab(TabContent):
                     padding=ft.padding.symmetric(vertical=8, horizontal=14),
                     border_radius=16,
                     border=ft.border.all(1.5, ft.Colors.GREY_400),
-                    bgcolor=COLORS["primary"] if c == self.selected_category else ft.Colors.GREY_100,
-                    on_click=lambda _, cat=c: self._on_category_selected(cat)
-                ) for c in categories
+                    bgcolor=(
+                        COLORS["primary"]
+                        if c == self.selected_category
+                        else ft.Colors.GREY_100
+                    ),
+                    on_click=lambda _, cat=c: self._on_category_selected(cat),
+                )
+                for c in categories
             ],
             spacing=8,
-            scroll=ft.ScrollMode.AUTO
+            scroll=ft.ScrollMode.AUTO,
         )
 
         filter_section = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Text("分类筛选", size=14, weight=ft.FontWeight.BOLD),
-                    self.category_chips
+                    self.category_chips,
                 ],
-                spacing=5
+                spacing=5,
             ),
-            padding=15
+            padding=15,
         )
 
         # 原理网格
         self.principles_grid = ft.GridView(
-            expand=True,
-            runs_count=2,
-            spacing=10,
-            child_aspect_ratio=1.8,
-            padding=10
+            expand=True, runs_count=2, spacing=10, child_aspect_ratio=1.8, padding=10
         )
 
         # 组装
-        self.controls.extend([
-            title,
-            ft.Divider(),
-            filter_section,
-            ft.Divider(),
-            self.principles_grid
-        ])
+        self.controls.extend(
+            [title, ft.Divider(), filter_section, ft.Divider(), self.principles_grid]
+        )
 
     def _on_category_selected(self, category: str):
         """分类选择"""
@@ -122,11 +119,17 @@ class PrinciplesTab(TabContent):
         if not self.category_chips:
             return
         for container in self.category_chips.controls:
-            if isinstance(container, ft.Container) and isinstance(container.content, ft.Text):
+            if isinstance(container, ft.Container) and isinstance(
+                container.content, ft.Text
+            ):
                 text = container.content.value
                 is_selected = text == category
-                container.bgcolor = COLORS["primary"] if is_selected else ft.Colors.GREY_100
-                container.content.color = ft.Colors.WHITE if is_selected else ft.Colors.BLACK
+                container.bgcolor = (
+                    COLORS["primary"] if is_selected else ft.Colors.GREY_100
+                )
+                container.content.color = (
+                    ft.Colors.WHITE if is_selected else ft.Colors.BLACK
+                )
 
         self._apply_filters()
         self._page.update()
@@ -139,13 +142,16 @@ class PrinciplesTab(TabContent):
         if self.selected_category == "全部":
             filtered = all_principles
         else:
-            filtered = [p for p in all_principles if p.category == self.selected_category]
+            filtered = [
+                p for p in all_principles if p.category == self.selected_category
+            ]
 
         # 搜索筛选
         if self.search_query:
             query = self.search_query.lower()
             filtered = [
-                p for p in filtered
+                p
+                for p in filtered
                 if query in p.name.lower() or query in p.definition.lower()
             ]
 
@@ -177,57 +183,62 @@ class PrinciplesTab(TabContent):
                                     f"#{principle.id}",
                                     size=14,
                                     weight=ft.FontWeight.BOLD,
-                                    color=ft.Colors.WHITE
+                                    color=ft.Colors.WHITE,
                                 ),
                                 padding=ft.padding.all(6),
                                 border_radius=6,
-                                bgcolor=self._get_category_color(principle.category)
+                                bgcolor=self._get_category_color(principle.category),
                             ),
                             ft.Text(
                                 principle.name,
                                 size=14,
                                 weight=ft.FontWeight.BOLD,
-                                expand=True
-                            )
+                                expand=True,
+                            ),
                         ],
-                        spacing=8
+                        spacing=8,
                     ),
                     ft.Container(height=5),
                     ft.Text(
-                        principle.definition[:50] + "..." if len(principle.definition) > 50 else principle.definition,
+                        (
+                            principle.definition[:50] + "..."
+                            if len(principle.definition) > 50
+                            else principle.definition
+                        ),
                         size=11,
                         color=ft.Colors.GREY_600,
                         max_lines=2,
-                        overflow=ft.TextOverflow.ELLIPSIS
+                        overflow=ft.TextOverflow.ELLIPSIS,
                     ),
                     ft.Container(height=5),
                     ft.Row(
                         controls=[
                             ft.Container(
                                 content=ft.Text(
-                                    principle.category,
-                                    size=9,
-                                    color=COLORS["primary"]
+                                    principle.category, size=9, color=COLORS["primary"]
                                 ),
-                                padding=3
+                                padding=3,
                             ),
                             ft.Container(expand=True),
-                            ft.Icon(ft.icons.Icons.CHEVRON_RIGHT, size=16, color=ft.Colors.GREY)
+                            ft.Icon(
+                                ft.icons.Icons.CHEVRON_RIGHT,
+                                size=16,
+                                color=ft.Colors.GREY,
+                            ),
                         ]
-                    )
+                    ),
                 ],
-                spacing=3
+                spacing=3,
             ),
             padding=12,
             border_radius=8,
             bgcolor=ft.Colors.GREY_100,
             border=ft.border.all(1, ft.Colors.GREY_300),
-            on_click=lambda _, p=principle: self._on_principle_click(p)
+            on_click=lambda _, p=principle: self._on_principle_click(p),
         )
 
     def _get_category_color(self, category: str) -> str:
         """获取分类颜色"""
-        from ...config.constants import CATEGORY_COLORS
         return CATEGORY_COLORS.get(category, "#2196F3")
 
     def _on_principle_click(self, principle: InventivePrinciple):
@@ -241,17 +252,23 @@ class PrinciplesTab(TabContent):
     def _show_principle_detail_dialog(self, principle: InventivePrinciple):
         """显示原理详情弹窗"""
         dialog = ft.AlertDialog(
+            open=True,
             title=ft.Row(
                 controls=[
                     ft.Container(
-                        content=ft.Text(f"#{principle.id}", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                        content=ft.Text(
+                            f"#{principle.id}",
+                            size=18,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                        ),
                         padding=8,
                         border_radius=8,
-                        bgcolor=COLORS["primary"]
+                        bgcolor=COLORS["primary"],
                     ),
-                    ft.Text(principle.name, size=18, weight=ft.FontWeight.BOLD)
+                    ft.Text(principle.name, size=18, weight=ft.FontWeight.BOLD),
                 ],
-                spacing=10
+                spacing=10,
             ),
             content=ft.Container(
                 content=ft.Column(
@@ -260,97 +277,120 @@ class PrinciplesTab(TabContent):
                         ft.Container(
                             content=ft.Column(
                                 controls=[
-                                    ft.Text("核心定义", size=14, weight=ft.FontWeight.BOLD, color=COLORS["primary"]),
-                                    ft.Text(principle.definition, size=13)
+                                    ft.Text(
+                                        "核心定义",
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=COLORS["primary"],
+                                    ),
+                                    ft.Text(principle.definition, size=13),
                                 ],
-                                spacing=5
+                                spacing=5,
                             ),
                             padding=10,
                             bgcolor=ft.Colors.GREY_100,
-                            border_radius=8
+                            border_radius=8,
                         ),
-
                         # 分类标签
                         ft.Container(
                             content=ft.Row(
                                 controls=[
-                                    ft.Text("分类:", size=12, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        "分类:", size=12, weight=ft.FontWeight.BOLD
+                                    ),
                                     ft.Container(
-                                        content=ft.Text(principle.category, size=11, color=ft.Colors.WHITE),
+                                        content=ft.Text(
+                                            principle.category,
+                                            size=11,
+                                            color=ft.Colors.WHITE,
+                                        ),
                                         padding=5,
                                         border_radius=5,
-                                        bgcolor=self._get_category_color(principle.category)
+                                        bgcolor=self._get_category_color(
+                                            principle.category
+                                        ),
                                     ),
                                     ft.Container(expand=True),
-                                    ft.Text(f"标签: {', '.join(principle.tags)}", size=11, color=ft.Colors.GREY)
+                                    ft.Text(
+                                        f"标签: {', '.join(principle.tags)}",
+                                        size=11,
+                                        color=ft.Colors.GREY,
+                                    ),
                                 ],
-                                spacing=10
+                                spacing=10,
                             ),
-                            padding=10
+                            padding=10,
                         ),
-
                         ft.Divider(),
-
                         # 示例
                         ft.Text("示例", size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Column(
-                                controls=[
-                                    ft.Text(f"• {ex}", size=12) for ex in principle.examples
-                                ] if principle.examples else [ft.Text("暂无", size=12, color=ft.Colors.GREY)],
-                                spacing=3
+                                controls=(
+                                    [
+                                        ft.Text(f"• {ex}", size=12)
+                                        for ex in principle.examples
+                                    ]
+                                    if principle.examples
+                                    else [
+                                        ft.Text("暂无", size=12, color=ft.Colors.GREY)
+                                    ]
+                                ),
+                                spacing=3,
                             ),
-                            padding=5
+                            padding=5,
                         ),
-
                         ft.Divider(),
-
                         # 应用案例
                         ft.Text("应用案例", size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Column(
-                                controls=[
-                                    ft.Text(f"• {uc}", size=12) for uc in principle.use_cases
-                                ] if principle.use_cases else [ft.Text("暂无", size=12, color=ft.Colors.GREY)],
-                                spacing=3
+                                controls=(
+                                    [
+                                        ft.Text(f"• {uc}", size=12)
+                                        for uc in principle.use_cases
+                                    ]
+                                    if principle.use_cases
+                                    else [
+                                        ft.Text("暂无", size=12, color=ft.Colors.GREY)
+                                    ]
+                                ),
+                                spacing=3,
                             ),
-                            padding=5
+                            padding=5,
                         ),
-
                         ft.Divider(),
-
                         # 详细说明
                         ft.Text("详细说明", size=14, weight=ft.FontWeight.BOLD),
                         ft.Text(principle.explanation, size=12),
-
                         ft.Divider(),
-
                         # 实施步骤
                         ft.Text("实施步骤", size=14, weight=ft.FontWeight.BOLD),
                         ft.Column(
-                            controls=[
-                                ft.Text(step, size=12) for step in principle.implementation_steps
-                            ] if principle.implementation_steps else [ft.Text("暂无", size=12, color=ft.Colors.GREY)],
-                            spacing=3
+                            controls=(
+                                [
+                                    ft.Text(step, size=12)
+                                    for step in principle.implementation_steps
+                                ]
+                                if principle.implementation_steps
+                                else [ft.Text("暂无", size=12, color=ft.Colors.GREY)]
+                            ),
+                            spacing=3,
                         ),
-
                         ft.Divider(),
-
                         # 应用效益
                         ft.Text("应用效益", size=14, weight=ft.FontWeight.BOLD),
-                        ft.Text(principle.benefits, size=12)
+                        ft.Text(principle.benefits, size=12),
                     ],
                     spacing=8,
-                    scroll=ft.ScrollMode.AUTO
+                    scroll=ft.ScrollMode.AUTO,
                 ),
                 width=400,
                 height=500,
-                padding=10
+                padding=10,
             ),
-            actions=[
-                ft.TextButton("关闭", on_click=lambda _: self._close_dialog())
-            ],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions=[ft.TextButton("关闭", on_click=lambda _: self._close_dialog())],
+            actions_alignment=ft.MainAxisAlignment.END,
         )
 
         self._page.show_dialog(dialog)

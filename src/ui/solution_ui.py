@@ -16,6 +16,21 @@ from ..config.constants import (
 logger = logging.getLogger(__name__)
 
 
+def _hex_to_flet_color(hex_color: str, alpha: int = 255) -> str:
+    """将 #RRGGBB 格式的 hex 颜色转换为 Flet 颜色（带透明度）
+
+    Args:
+        hex_color: 颜色值如 "#2196F3"
+        alpha: 透明度 0-255，默认为 255（不透明）
+
+    Returns:
+        Flet 颜色字符串，格式为 #AARRGGBB
+    """
+    if hex_color.startswith("#"):
+        hex_color = hex_color[1:]
+    return f"#{alpha:02X}{hex_color}"
+
+
 class SolutionListView:
     """解决方案展示类"""
 
@@ -338,7 +353,7 @@ class SolutionListView:
                                     ),
                                     padding=5,
                                     border_radius=5,
-                                    bgcolor=conf_color + "20"
+                                    bgcolor=_hex_to_flet_color(conf_color, 32)
                                 )
                             ],
                             spacing=10,

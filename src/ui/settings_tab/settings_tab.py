@@ -5,6 +5,8 @@
 
 import flet as ft
 import logging
+from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Callable
 
 from ..app_shell import TabContent
@@ -318,25 +320,69 @@ class SettingsTab(TabContent):
         import os
         from pathlib import Path
 
+        # Android 环境检测
+        def _is_android_env() -> bool:
+            import sys
+            if sys.platform == "android":
+                return True
+            if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
+                return True
+            if "ANDROID_DATA" in os.environ:
+                return True
+            if os.getenv("FLET_APP_STORAGE_DATA"):
+                return True
+            return False
+
         # 使用与 main.py 一致的日志路径
         app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
         if app_data_path:
             log_file = Path(app_data_path) / "logs" / "triz_app.log"
+        elif _is_android_env():
+            # Android 环境回退到当前目录
+            log_file = Path(".") / ".triz_logs" / "triz_app.log"
         else:
-            log_file = Path.home() / ".config" / "triz-assistant" / "logs" / "triz_app.log"
+            # 桌面环境
+            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+            log_file = Path(config_home) / "triz-assistant" / "logs" / "triz_app.log"
 
-        log_content = ""
+        # 安全验证：解析并验证日志路径
+        try:
+            log_file = log_file.resolve()
+            log_content = ""
+        except Exception:
+            log_content = "日志路径无效"
 
-        if log_file.exists():
+        if not log_content and log_file.exists():
             try:
-                with open(log_file, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    log_content = "".join(lines[-100:])
+                # 高效读取最后100行：从文件末尾反向读取
+                with open(log_file, "rb") as f:
+                    f.seek(0, 2)  # 移到文件末尾
+                    file_size = f.tell()
+                    if file_size > 0:
+                        # 从末尾开始，查找最后100行
+                        pos = file_size
+                        lines_found = 0
+                        lines = []
+                        chunk_size = 8192
+                        while pos > 0 and lines_found < 100:
+                            read_size = min(chunk_size, pos)
+                            pos -= read_size
+                            f.seek(pos)
+                            chunk = f.read(read_size).decode("utf-8", errors="replace")
+                            chunk_lines = chunk.split("\n")
+                            if lines:
+                                # 第一块不需要去掉最后的空行
+                                lines[0] = chunk_lines[-1]
+                            lines = chunk_lines + lines
+                            lines_found = len(lines)
+                        log_content = "\n".join(lines[-100:])
+                    else:
+                        log_content = "日志文件为空"
                 if not log_content:
                     log_content = "日志文件为空"
             except Exception as ex:
                 log_content = f"读取日志失败: {ex}"
-        else:
+        elif not log_content:
             log_content = f"日志文件不存在\n请检查 {log_file}"
 
         # 刷新按钮
@@ -398,31 +444,48 @@ class SettingsTab(TabContent):
             self._show_snack_bar("没有可导出的历史记录")
             return
 
-        # 保存到应用私有存储目录
         import os
-        from datetime import datetime
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"triz_history_{timestamp}.{format}"
+        safe_filename = f"triz_history_{timestamp}.{format}"
 
-        # 使用 FLET_APP_STORAGE_DATA 路径（Android 专用存储）
+        # 使用 FLET_APP_STORAGE_DATA 路径
         app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
         if app_data_path:
             exports_dir = os.path.join(app_data_path, "exports")
         else:
-            # 回退到相对路径（桌面模式）
-            exports_dir = "exports"
+            # Fallback: 使用 XDG_CONFIG_HOME
+            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+            exports_dir = os.path.join(config_home, "triz-assistant", "exports")
 
-        os.makedirs(exports_dir, exist_ok=True)
-        filepath = os.path.join(exports_dir, filename)
+        # 安全验证：使用 resolve() 和目录相等性检查防止路径遍历
+        try:
+            exports_path = Path(exports_dir).resolve()
+            if app_data_path:
+                allowed_base = Path(app_data_path).resolve()
+            else:
+                allowed_base = Path.cwd().resolve()
+
+            # 确保导出目录在允许的基础目录内
+            if not str(exports_path).startswith(str(allowed_base) + os.sep):
+                logger.warning(f"导出路径不安全: {exports_path}")
+                self._show_snack_bar("导出路径无效")
+                return
+        except Exception as ex:
+            logger.warning(f"路径解析失败: {ex}")
+            self._show_snack_bar("导出路径无效")
+            return
+
+        os.makedirs(exports_path, exist_ok=True)
+        filepath = exports_path / safe_filename
 
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
-            self._show_snack_bar(f"已导出到 {filepath}")
+            self._show_snack_bar("导出成功")
         except Exception as ex:
             logger.error(f"导出失败: {ex}")
-            self._show_snack_bar(f"导出失败: {ex}")
+            self._show_snack_bar("导出失败")
 
     def _confirm_clear_all(self, _: Optional[ft.ControlEvent] = None):
         """确认清空所有历史"""

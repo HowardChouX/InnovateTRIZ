@@ -23,7 +23,7 @@ class AISettingsDialog:
             "provider": "deepseek",
             "api_key": "",
             "base_url": "https://api.deepseek.com/v1",
-            "model": "deepseek-chat"
+            "model": "deepseek-chat",
         }
 
         # UI组件
@@ -37,14 +37,22 @@ class AISettingsDialog:
         self.testLoading: Optional[ft.ProgressRing] = None
 
     def _show_snack_bar(self, message: str):
-        """显示弹窗提示消息"""
+        """显示提示消息（使用 AlertDialog 模拟 SnackBar）"""
         dlg = ft.AlertDialog(
+            modal=False,
             content=ft.Text(message),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog())
-            ]
         )
         self.page.show_dialog(dlg)
+        # 使用 run_task 自动关闭对话框
+        self.page.run_task(self._auto_close_dialog, dlg)
+
+    async def _auto_close_dialog(self, dlg: ft.AlertDialog):
+        """自动关闭对话框"""
+        import asyncio
+
+        await asyncio.sleep(2)
+        dlg.open = False
+        self.page.update()
 
     def show(self):
         """显示设置对话框"""
@@ -74,7 +82,7 @@ class AISettingsDialog:
                 if not decrypted:
                     break
                 # 检查解密结果是否像 API key（sk- 开头）
-                if decrypted.startswith('sk-') or decrypted.startswith('api-'):
+                if decrypted.startswith("sk-") or decrypted.startswith("api-"):
                     return decrypted
                 # 如果不是 sk- 格式，尝试再次解密
                 api_key = decrypted
@@ -90,14 +98,10 @@ class AISettingsDialog:
                 providers_data[provider] = {
                     "api_key": api_key,
                     "base_url": provider_config.base_url,
-                    "model": provider_config.model
+                    "model": provider_config.model,
                 }
             else:
-                providers_data[provider] = {
-                    "api_key": "",
-                    "base_url": "",
-                    "model": ""
-                }
+                providers_data[provider] = {"api_key": "", "base_url": "", "model": ""}
 
         self.settings["providers_data"] = providers_data
 
@@ -133,7 +137,7 @@ class AISettingsDialog:
                 ft.dropdown.Option("openrouter", "OpenRouter"),
                 ft.dropdown.Option("openai-format", "Openai-format"),
             ],
-            on_select=self._on_provider_changed
+            on_select=self._on_provider_changed,
         )
 
         self.apiKeyField = ft.TextField(
@@ -142,21 +146,21 @@ class AISettingsDialog:
             hint_text="sk-...",
             password=True,
             can_reveal_password=True,
-            expand=True
+            expand=True,
         )
 
         self.baseUrlField = ft.TextField(
             label="Base URL",
             value=self.settings["base_url"],
             hint_text="https://api.openrouter.ai/api/v1",
-            expand=True
+            expand=True,
         )
 
         self.modelField = ft.TextField(
             label="模型",
             value=self.settings["model"],
             hint_text="deepseek/deepseek-chat",
-            expand=True
+            expand=True,
         )
 
         # 连接测试相关
@@ -165,9 +169,8 @@ class AISettingsDialog:
             icon=ft.icons.Icons.NETWORK_CHECK,
             on_click=self._on_test_connection,
             style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=COLORS.get("secondary", "#FF9800")
-            )
+                color=ft.Colors.WHITE, bgcolor=COLORS.get("secondary", "#FF9800")
+            ),
         )
         self.testLoading = ft.ProgressRing(width=20, height=20, visible=False)
         self.connectionStatusText = ft.Text("", size=12)
@@ -185,16 +188,18 @@ class AISettingsDialog:
                     controls=[
                         self.testConnectionBtn,
                         self.testLoading,
-                        self.connectionStatusText
+                        self.connectionStatusText,
                     ],
                     spacing=10,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 ft.Container(height=5),
-                ft.Text("密钥已使用算法加密安全的保存到本地", size=12, color=ft.Colors.GREY)
+                ft.Text(
+                    "密钥已使用算法加密安全的保存到本地", size=12, color=ft.Colors.GREY
+                ),
             ],
             spacing=15,
-            scroll=ft.ScrollMode.AUTO
+            scroll=ft.ScrollMode.AUTO,
         )
 
         self.dialog = ft.AlertDialog(
@@ -205,7 +210,7 @@ class AISettingsDialog:
                 ft.TextButton("取消", on_click=self._on_cancel),
                 ft.TextButton("保存", on_click=self._on_save),
             ],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions_alignment=ft.MainAxisAlignment.END,
         )
 
     def _on_provider_changed(self, e: ft.Event[ft.Dropdown]):
@@ -254,9 +259,13 @@ class AISettingsDialog:
         self.page.pop_dialog()
 
         # 使用 page.run_task 执行异步保存
-        self.page.run_task(self._save_settings_async, api_key, provider, base_url, model)
+        self.page.run_task(
+            self._save_settings_async, api_key, provider, base_url, model
+        )
 
-    async def _save_settings_async(self, api_key: str, provider: str, base_url: str, model: str):
+    async def _save_settings_async(
+        self, api_key: str, provider: str, base_url: str, model: str
+    ):
         """异步保存设置"""
         from src.config.settings import get_app_settings
         from src.ai.ai_client import get_ai_manager
@@ -272,7 +281,7 @@ class AISettingsDialog:
             # 更新对应供应商的配置
             settings.config.set_provider_config(
                 provider,
-                ProviderConfig(api_key=api_key, base_url=base_url, model=model)
+                ProviderConfig(api_key=api_key, base_url=base_url, model=model),
             )
 
             success = await settings.save()
@@ -280,15 +289,12 @@ class AISettingsDialog:
                 logger.error("保存AI设置失败")
                 return
 
-            logger.info(f"AI设置已保存: {settings.config_file}")
+            logger.info("AI设置已保存")
 
             # 重新初始化AI管理器
             ai_manager = get_ai_manager()
             ai_manager.initialize(
-                api_key=api_key,
-                provider=provider,
-                base_url=base_url,
-                model=model
+                api_key=api_key, provider=provider, base_url=base_url, model=model
             )
 
             if self.on_settings_changed:
@@ -301,7 +307,9 @@ class AISettingsDialog:
         """手动测试AI连接"""
         assert self.apiKeyField is not None and self.baseUrlField is not None
         assert self.modelField is not None and self.providerDropdown is not None
-        assert self.connectionStatusText is not None and self.testConnectionBtn is not None
+        assert (
+            self.connectionStatusText is not None and self.testConnectionBtn is not None
+        )
         assert self.testLoading is not None
 
         api_key = self.apiKeyField.value.strip()
@@ -324,15 +332,19 @@ class AISettingsDialog:
             api_key,
             self.providerDropdown.value or "deepseek",
             self.baseUrlField.value.strip(),
-            self.modelField.value.strip()
+            self.modelField.value.strip(),
         )
 
-    async def _test_connection_async(self, api_key: str, provider: str, base_url: str, model: str):
+    async def _test_connection_async(
+        self, api_key: str, provider: str, base_url: str, model: str
+    ):
         """异步测试AI连接"""
         import time
         from src.ai.ai_client import get_ai_manager
 
-        assert self.connectionStatusText is not None and self.testConnectionBtn is not None
+        assert (
+            self.connectionStatusText is not None and self.testConnectionBtn is not None
+        )
         assert self.testLoading is not None
 
         start_time = None
@@ -342,10 +354,7 @@ class AISettingsDialog:
             # 临时初始化AI客户端进行测试
             ai_manager = get_ai_manager()
             ai_manager.initialize(
-                api_key=api_key,
-                provider=provider,
-                base_url=base_url,
-                model=model
+                api_key=api_key, provider=provider, base_url=base_url, model=model
             )
 
             # 尝试获取客户端并发送一个简单请求测试
@@ -353,14 +362,12 @@ class AISettingsDialog:
             if client:
                 # 发送一个简单的 chat completion 请求测试连接
                 from openai import AsyncOpenAI
-                test_client = AsyncOpenAI(
-                    api_key=api_key,
-                    base_url=base_url
-                )
+
+                test_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
                 await test_client.chat.completions.create(
                     model=model,
                     messages=[{"role": "user", "content": "Hi"}],
-                    max_tokens=5
+                    max_tokens=5,
                 )
                 elapsed = (time.time() - start_time) * 1000
 

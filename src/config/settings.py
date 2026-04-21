@@ -39,11 +39,13 @@ def _simple_decrypt(data: str) -> str:
 
 def _is_android() -> bool:
     """检测是否运行在Android环境"""
-    # 优先检测 platform
     if sys.platform == "android":
         return True
-    # 回退检测 ANDROID_ROOT 环境变量
     if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
+        return True
+    if "ANDROID_DATA" in os.environ:
+        return True
+    if os.getenv("FLET_APP_STORAGE_DATA"):
         return True
     return False
 
@@ -58,19 +60,36 @@ class AppSettings:
 
     def _get_config_path(self) -> Path:
         """获取配置文件路径"""
-        # 方法1: 使用 FLET_APP_STORAGE_DATA 环境变量（最推荐）
+        # 优先使用 FLET_APP_STORAGE_DATA（Flet推荐的应用私有存储）
         app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
         if app_data_path:
             config_path = Path(app_data_path) / "config.json"
+            try:
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
             return config_path
 
-        # 方法2: 非 Android 路径
+        # 非Android或FLET_APP_STORAGE_DATA未设置时的回退
         if os.name == "nt":  # Windows
-            config_dir = Path(os.environ.get("APPDATA", "")) / "TRIZAssistant"
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                config_dir = Path(appdata) / "TRIZAssistant"
+            else:
+                # APPDATA未设置时使用Windows标准路径
+                config_dir = Path.home() / "AppData" / "Roaming" / "TRIZAssistant"
+        elif _is_android():
+            # Android上FLET_APP_STORAGE_DATA通常会设置，如未设置则用相对路径
+            # 相对于应用工作目录（Android上通常是应用私有目录）
+            config_dir = Path(".") / ".triz_config"
         else:  # Linux/Mac
-            config_dir = Path.home() / ".config" / "triz-assistant"
+            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+            config_dir = Path(config_home) / "triz-assistant"
 
-        config_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            config_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         return config_dir / "config.json"
 
     def _ensure_directories(self):
@@ -80,18 +99,30 @@ class AppSettings:
         ]
 
         if not _is_android():
-            # 非Android环境添加相对路径目录
-            directories.extend([
-                Path("exports"),  # 导出目录
-                Path("cache"),  # 缓存目录
-                Path("logs"),  # 日志目录
-            ])
+            # 非Android环境使用 Flet 推荐的存储路径
+            app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
+            app_temp_path = os.getenv("FLET_APP_STORAGE_TEMP")
+
+            if app_data_path:
+                base_dir = Path(app_data_path)
+                directories.extend([
+                    base_dir / "exports",  # 导出目录（持久数据）
+                    base_dir / "logs",     # 日志目录
+                ])
+
+            if app_temp_path:
+                temp_dir = Path(app_temp_path)
+                directories.append(temp_dir / "cache")  # 缓存目录（临时文件）
+            else:
+                # Fallback: 优先使用 XDG_CACHE_HOME，否则用配置目录
+                cache_home = os.getenv("XDG_CACHE_HOME") or os.path.join(Path.home(), ".cache")
+                directories.append(Path(cache_home) / "triz-assistant")
 
         for directory in directories:
             try:
                 directory.mkdir(parents=True, exist_ok=True)
-            except:
-                pass  # Android上某些目录可能无法创建
+            except Exception as e:
+                logger.warning(f"无法创建目录 {directory}: {e}")
 
     async def load(self):
         """加载设置（不解密，密钥在打开设置对话框时解密）"""

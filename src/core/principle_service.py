@@ -6,7 +6,7 @@
 import logging
 from typing import List, Dict, Optional, Any
 from ..data.models import InventivePrinciple
-from ..data.excel_loader import get_triz_data_loader
+from ..data.triz_constants import get_triz_data_loader
 from ..config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
 
 logger = logging.getLogger(__name__)

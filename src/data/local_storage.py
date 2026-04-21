@@ -22,23 +22,29 @@ def _is_android() -> bool:
     """检测是否运行在Android环境"""
     if sys.platform == "android":  # type: ignore[comparison-overlap]
         return True
-    if "ANDROID" in __import__("os").environ.get("ANDROID_ROOT", ""):
+    if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
+        return True
+    if "ANDROID_DATA" in os.environ:
+        return True
+    if os.getenv("FLET_PLATFORM") == "android":
         return True
     return False
 
 
 def _get_storage_dir() -> Path:
-    """获取存储目录，兼容Android"""
-    # 方法1: 使用 FLET_APP_STORAGE_DATA 环境变量（最推荐）
+    """获取存储目录（Flet统一管理，所有平台使用FLET_APP_STORAGE_DATA）"""
     app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
     if app_data_path:
         storage_dir = Path(app_data_path)
-        storage_dir.mkdir(parents=True, exist_ok=True)
-        return storage_dir
+    else:
+        # 防御性fallback：使用用户配置目录
+        config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+        storage_dir = Path(config_home) / "triz-assistant" / "data"
 
-    # 方法2: 回退到 home 目录
-    storage_dir = Path.home() / ".config" / "triz-assistant"
-    storage_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        storage_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning(f"无法创建存储目录 {storage_dir}: {e}")
     return storage_dir
 
 

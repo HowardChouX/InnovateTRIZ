@@ -28,22 +28,43 @@ from src.ui.settings_tab import SettingsTab
 # 配置日志（仅控制台，避免Android文件权限问题）
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()  # 仅控制台
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],  # 仅控制台
 )
 
+
 # 尝试添加文件日志处理器（Android上可能失败）
+def _is_android_env() -> bool:
+    """检测Android环境"""
+    if sys.platform == "android":
+        return True
+    if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
+        return True
+    if "ANDROID_DATA" in os.environ:
+        return True
+    if os.getenv("FLET_APP_STORAGE_DATA"):
+        return True
+    return False
+
+
 try:
     app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
     if app_data_path:
         log_dir = Path(app_data_path) / "logs"
+    elif _is_android_env():
+        # Android 环境回退到当前目录
+        log_dir = Path(".") / ".triz_logs"
     else:
-        log_dir = Path.home() / ".config" / "triz-assistant" / "logs"
+        # 桌面环境
+        config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(
+            Path.home(), ".config"
+        )
+        log_dir = Path(config_home) / "triz-assistant" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_dir / "triz_app.log", encoding="utf-8")
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
     logging.getLogger().addHandler(file_handler)
 except Exception:
     pass  # Android上文件日志可能失败，使用控制台日志即可
@@ -63,12 +84,14 @@ class TRIZApp:
     async def main(self, page: ft.Page):
         """主函数"""
         self.page = page
+        assert self.page is not None
         await self._setup_page()
         await self._initialize_components()
         await self._show_main_interface()
 
     async def _setup_page(self):
         """设置页面"""
+        assert self.page is not None
         # 页面配置
         self.page.title = f"{APP_NAME} v{APP_VERSION}"
         self.page.theme_mode = ft.ThemeMode.LIGHT
@@ -88,6 +111,7 @@ class TRIZApp:
 
     async def _initialize_components(self):
         """初始化组件"""
+        assert self.page is not None
         try:
             # 初始化设置（使用全局单例）
             self.settings = get_app_settings()
@@ -101,17 +125,22 @@ class TRIZApp:
             ai_manager = get_ai_manager()
             # 获取当前供应商的配置并解密
             current_provider = self.settings.ai_provider
-            provider_config = self.settings.config.ai_providers_config.get(current_provider)
+            provider_config = self.settings.config.ai_providers_config.get(
+                current_provider
+            )
             if provider_config and provider_config.api_key:
                 # 解密密钥
                 from src.config.settings import _simple_decrypt
-                api_key = _simple_decrypt(provider_config.api_key) or provider_config.api_key
+
+                api_key = (
+                    _simple_decrypt(provider_config.api_key) or provider_config.api_key
+                )
                 if api_key:
                     ai_manager.initialize(
                         api_key=api_key,
                         provider=current_provider,
                         base_url=provider_config.base_url,
-                        model=provider_config.model
+                        model=provider_config.model,
                     )
                     logger.info("AI管理器初始化完成")
                     # 静默测试AI连接
@@ -155,7 +184,9 @@ class TRIZApp:
             elapsed_ms = (time.time() - start_time) * 1000
 
             ai_manager.set_connected(is_connected)
-            logger.info(f"AI静默连接测试完成: {'成功' if is_connected else '失败'}, 延迟: {elapsed_ms:.0f}ms")
+            logger.info(
+                f"AI静默连接测试完成: {'成功' if is_connected else '失败'}, 延迟: {elapsed_ms:.0f}ms"
+            )
 
             # 通知AI状态变化
             ai_state = get_ai_state_manager()
@@ -183,11 +214,14 @@ class TRIZApp:
 
     async def _show_error_page(self, error_message: str):
         """显示错误页面"""
+        assert self.page is not None
         self.page.clean()
 
         error_content = ft.Column(
             controls=[
-                ft.Icon(ft.icons.Icons.WARNING_AMBER_ROUNDED, size=64, color=ft.Colors.RED),
+                ft.Icon(
+                    ft.icons.Icons.WARNING_AMBER_ROUNDED, size=64, color=ft.Colors.RED
+                ),
                 ft.Text("应用启动失败", size=24, weight=ft.FontWeight.BOLD),
                 ft.Text(error_message, size=16, color=ft.Colors.GREY),
                 ft.Divider(),
@@ -198,18 +232,18 @@ class TRIZApp:
                 ft.Button(
                     "重试",
                     icon=ft.icons.Icons.REFRESH,
-                    on_click=lambda e: self._restart_app()
-                )
+                    on_click=lambda e: self._restart_app(),
+                ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=20
+            spacing=20,
         )
 
         self.page.add(
             ft.Container(
                 content=error_content,
                 alignment=ft.alignment.Alignment(0.5, 0.5),
-                expand=True
+                expand=True,
             )
         )
 
@@ -221,6 +255,7 @@ class TRIZApp:
 
     async def _restart_async(self):
         """异步重启"""
+        assert self.page is not None
         self.page.clean()
         await self._initialize_components()
         await self._show_main_interface()
@@ -236,7 +271,7 @@ def main():
         "--mode",
         choices=["web", "desktop", "apk"],
         default="web",
-        help="运行模式: web(浏览器), desktop(桌面窗口), apk(移动应用)"
+        help="运行模式: web(浏览器), desktop(桌面窗口), apk(移动应用)",
     )
     parser.add_argument("--port", type=int, default=8550, help="Web模式端口")
     args = parser.parse_args()
@@ -258,22 +293,15 @@ def main():
                 TRIZApp().main,
                 view=ft.AppView.WEB_BROWSER,
                 port=args.port,
-                assets_dir="assets"
+                assets_dir="assets",
             )
         elif args.mode == "desktop":
             # 桌面模式
-            ft.run(
-                TRIZApp().main,
-                view=ft.AppView.FLET_APP,
-                assets_dir="assets"
-            )
+            ft.run(TRIZApp().main, view=ft.AppView.FLET_APP, assets_dir="assets")
         else:
             # APK模式（移动应用）- 不需要指定view
             # 在Android/iOS上自动适配
-            ft.run(
-                TRIZApp().main,
-                assets_dir="assets"
-            )
+            ft.run(TRIZApp().main, assets_dir="assets")
 
     except KeyboardInterrupt:
         print("\n👋 应用已退出")
@@ -285,3 +313,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

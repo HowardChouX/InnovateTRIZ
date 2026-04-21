@@ -12,6 +12,21 @@ from ..config.constants import COLORS
 logger = logging.getLogger(__name__)
 
 
+def _hex_to_flet_color(hex_color: str, alpha: int = 255) -> str:
+    """将 #RRGGBB 格式的 hex 颜色转换为 Flet 颜色（带透明度）
+
+    Args:
+        hex_color: 颜色值如 "#2196F3"
+        alpha: 透明度 0-255，默认为 255（不透明）
+
+    Returns:
+        Flet 颜色字符串，格式为 #AARRGGBB
+    """
+    if hex_color.startswith("#"):
+        hex_color = hex_color[1:]
+    return f"#{alpha:02X}{hex_color}"
+
+
 class ParameterPicker:
     """参数选择器类"""
 
@@ -214,7 +229,7 @@ class ParameterPicker:
 
     def _create_param_button(self, param: str, is_selected: bool) -> ft.Container:
         """创建参数按钮"""
-        bg_color = COLORS["primary"] + "20" if is_selected else ft.Colors.GREY_100
+        bg_color = _hex_to_flet_color(COLORS["primary"], 32) if is_selected else ft.Colors.GREY_100
         border_color = COLORS["primary"] if is_selected else ft.Colors.TRANSPARENT
 
         return ft.Container(

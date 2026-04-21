@@ -9,6 +9,8 @@ InnovateTRIZ 是一个基于 **Flet** 框架的 Android 移动应用，提供 AI
 ## 常用命令
 
 ```bash
+# Python 版本要求：3.10+
+
 # 桌面模式运行（开发调试首选）
 python main.py --mode desktop
 
@@ -20,6 +22,10 @@ pytest tests/ -v
 
 # 运行单个测试文件
 pytest tests/test_core.py -v
+
+# 按名称过滤测试（支持通配符）
+pytest tests/ -k "matrix" -v      # 运行所有包含"matrix"的测试
+pytest tests/ -k "ai and not status" -v  # 排除 status
 
 # 代码格式化与检查
 black src/ tests/
@@ -48,7 +54,7 @@ flet build aab
 | 自定义控件 | `docs_flet/extend/` |
 | 客户端存储 | `docs_flet/cookbook/client-storage.md` |
 
-### Flet 关键规范（当前版本 v0.82.2）
+### Flet 关键规范（当前版本 v0.84.0）
 
 - 入口：`ft.app(target=async_main, assets_dir="assets")`
 - 异步优先：事件处理器应为 `async def`，刷新使用 `await page.update_async()`
@@ -81,7 +87,7 @@ main.py → TRIZApp.main(page)
 ### UI 层级
 
 - `TRIZAppShell`（`src/ui/app_shell.py`）：管理 `ft.NavigationBar` + Tab 显隐切换
-- `TabContent(ft.Column)` 是所有 Tab 的基类，提供 `on_show()` / `on_hide()` 延迟构建钩子
+- `TabContent(ft.Column)` 是所有 Tab 的基类，`on_show()` 在 Tab 首次显示时调用（用于延迟构建 UI），`on_hide()` 在 Tab 隐藏时调用
 - `AIStateManager`（`src/ui/state/ai_state.py`）：观察者模式单例，广播 AI 启用/连接状态变更，`MatrixTab` 通过 `subscribe()` 同步 AI 按钮状态
 
 ### 全局单例模式
@@ -99,16 +105,23 @@ main.py → TRIZApp.main(page)
 
 ### 数据流
 
-- 所有 TRIZ 数据（参数、矩阵、原理）**内置于** `src/data/excel_loader.py`（1189 条矩阵记录），无外部文件依赖
+- 所有 TRIZ 数据（参数、矩阵、原理）**内置于** `src/data/triz_constants.py`（1189 条矩阵记录），无外部文件依赖
 - `LocalStorage`（`src/data/local_storage.py`）：SQLite 直接存储分析会话，Android 下自动从 WAL 模式切换为 DELETE 模式
-- `AppSettings` 持久化到 `~/.config/triz-assistant/config.json`（Android: `/data/data/com.example.triz/files/config.json`），API Key 用 Base64 简单混淆存储
+- `AppSettings` 持久化到 `FLET_APP_STORAGE_DATA` 环境变量指定目录下的 `config.json`，API Key 用 Base64 简单混淆存储
+- `LocalStorage`（SQLite）同样使用 `FLET_APP_STORAGE_DATA` 目录，`FLET_APP_STORAGE_TEMP` 用于缓存
 
 ### AI 集成
 
-- `AIClient` 封装 `AsyncOpenAI`，通过 `openai` 兼容 SDK 调用 DeepSeek（默认）或 OpenRouter
+- `AIClient` 封装 `AsyncOpenAI`，支持 DeepSeek（默认）、OpenRouter 等 OpenAI 兼容接口
 - `AIManager`（单例）管理连接状态：`is_enabled()` = 已配置，`is_connected()` = 实际可用
+- 多提供商配置存储在 `config.json`，通过 `AppSettings.ai_providers_config` 管理
 - `LocalTRIZEngine.detect_parameters()` 用关键词权重匹配（带 `@lru_cache`）作为 AI 的降级方案
 - **头脑风暴遍历注入**：`TRIZEngine.generate_solutions_iterative()` 遍历每个原理单独调用 AI
+
+### 矛盾矩阵
+
+- **39 矛盾矩阵**：完整实现，1189 条记录
+- **48 矛盾矩阵**：预留接口，UI 可切换但功能未实现
 
 ### 提示词系统
 
@@ -120,7 +133,7 @@ main.py → TRIZApp.main(page)
 
 ## 关键约束
 
-1. **数据内置**：禁止依赖外部 Excel/CSV，所有数据在 `excel_loader.py` 的 Python 代码中
+1. **数据内置**：禁止依赖外部 Excel/CSV，所有数据在 `triz_constants.py` 的 Python 代码中
 2. **AI 默认关闭**：`ai_enabled = False`，用户必须主动开启
 3. **Android 专一**：不考虑 iOS，路径和存储已针对 Android 环境特殊处理
 4. **纯 Python 依赖**：打包前确认所有二进制包有 Android wheel
@@ -129,12 +142,12 @@ main.py → TRIZApp.main(page)
 ## 调试技巧
 
 ```bash
-# 查看实时日志
-tail -f logs/triz_app.log
+# 桌面模式运行时日志输出到控制台
+# Android 模式下日志路径：FLET_APP_STORAGE_DATA/.triz_logs/triz_app.log
 
 # 快速验证数据完整性
 python -c "
-from src.data.excel_loader import get_triz_data_loader
+from src.data.triz_constants import get_triz_data_loader
 loader = get_triz_data_loader()
 print(f'参数:{len(loader.get_all_params())}, 矩阵:{len(loader.get_contradiction_matrix())}, 原理:{len(loader.get_40_principles())}')
 "

@@ -223,7 +223,7 @@ class MatrixTab(TabContent):
                             ),
                             ft.Container(
                                 content=self.improving_text,
-                                padding=ft.padding.only(left=50)
+                                padding=ft.Padding.only(left=50)
                             ),
                             ft.Container(height=5),
                             ft.Row(
@@ -236,7 +236,7 @@ class MatrixTab(TabContent):
                             ),
                             ft.Container(
                                 content=self.worsening_text,
-                                padding=ft.padding.only(left=50)
+                                padding=ft.Padding.only(left=50)
                             )
                         ],
                         spacing=3
@@ -847,7 +847,7 @@ class MatrixTab(TabContent):
                 )
             ),
             padding=10,
-            alignment=ft.alignment.Alignment(0.5, 0.5)
+            alignment=ft.alignment.Alignment(0, 0)
         )
 
     def _create_principle_card(self, principle) -> ft.Container:
@@ -891,7 +891,7 @@ class MatrixTab(TabContent):
                                     weight=ft.FontWeight.BOLD,
                                     color=ft.Colors.WHITE
                                 ),
-                                padding=ft.padding.all(6),
+                                padding=ft.Padding.all(6),
                                 border_radius=6,
                                 bgcolor=self._get_category_color(principle_category)
                             ),
@@ -1011,7 +1011,7 @@ class MatrixTab(TabContent):
                                     weight=ft.FontWeight.BOLD,
                                     color=ft.Colors.WHITE
                                 ),
-                                padding=ft.padding.all(6),
+                                padding=ft.Padding.all(6),
                                 border_radius=6,
                                 bgcolor=self._get_category_color(solution_category)
                             ),
@@ -1101,7 +1101,7 @@ class MatrixTab(TabContent):
                                 weight=ft.FontWeight.BOLD,
                                 color=ft.Colors.WHITE
                             ),
-                            padding=ft.padding.all(6),
+                            padding=ft.Padding.all(6),
                             border_radius=6,
                             bgcolor=self._get_category_color(solution_category)
                         ),

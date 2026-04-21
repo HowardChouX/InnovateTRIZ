@@ -31,7 +31,7 @@ triz-app/
 │   ├── ai/              ✅ ai_client.py - AI客户端（DeepSeek/OpenRouter）
 │   ├── config/          ✅ constants.py, settings.py
 │   ├── core/            ✅ matrix_selector.py, triz_engine.py, principle_service.py
-│   ├── data/            ✅ local_storage.py, models.py, excel_loader.py
+│   ├── data/            ✅ local_storage.py, models.py, triz_constants.py
 │   ├── ui/              ✅ app_shell.py, matrix_tab/, principles_tab/, history_tab/
 │   └── utils/           ✅ logger.py - 全局日志系统
 ├── main.py              ✅ 主入口文件
@@ -41,7 +41,7 @@ triz-app/
 
 ### 2. 数据层实现 ✅
 
-#### 数据加载器 (`src/data/excel_loader.py`)
+#### 数据加载器 (`src/data/triz_constants.py`)
 - [x] 内置39工程参数（来自triz.xls）
 - [x] 内置1189条39×39矛盾矩阵记录
 - [x] 内置40发明原理名称
@@ -190,7 +190,7 @@ triz-app/
 
 | 模块 | 文件 | 行数 | 状态 |
 |------|------|------|------|
-| 数据加载器 | excel_loader.py | ~2500 | ✅ 完成（内置数据） |
+| 数据加载器 | triz_constants.py | ~2500 | ✅ 完成（内置数据） |
 | 原理服务 | principle_service.py | ~1100 | ✅ 完成 |
 | 本地存储 | local_storage.py | ~430 | ✅ 完成 |
 | AI客户端 | ai_client.py | ~500 | ✅ 完成 |
@@ -257,7 +257,7 @@ triz-app/
 │   │   └── triz_engine.py       # TRIZ引擎
 │   ├── data/
 │   │   ├── __init__.py
-│   │   ├── excel_loader.py     # 内置数据（39×39矩阵/40原理）
+│   │   ├── triz_constants.py     # 内置数据（39×39矩阵/40原理）
 │   │   ├── local_storage.py    # 本地存储
 │   │   └── models.py           # 数据模型
 │   └── ui/
