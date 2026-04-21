@@ -14,6 +14,7 @@ from .logger import (
     log_warning,
     log_error,
     IS_ANDROID,
+    is_android,
     LOG_FILE,
     TEST_LOG_FILE,
     LOG_DIR
@@ -30,6 +31,7 @@ __all__ = [
     "log_warning",
     "log_error",
     "IS_ANDROID",
+    "is_android",
     "LOG_FILE",
     "TEST_LOG_FILE",
     "LOG_DIR"

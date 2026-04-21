@@ -19,7 +19,7 @@ if src_path not in sys.path:
 from src.config.constants import APP_NAME, APP_VERSION, COLORS
 from src.data.local_storage import LocalStorage
 from src.ai.ai_client import get_ai_manager
-from src.config.settings import AppSettings
+from src.config.settings import AppSettings, get_app_settings
 from src.ui.app_shell import TRIZAppShell
 from src.ui.matrix_tab import MatrixTab
 from src.ui.principles_tab import PrinciplesTab
@@ -89,26 +89,35 @@ class TRIZApp:
     async def _initialize_components(self):
         """初始化组件"""
         try:
-            # 初始化设置
-            self.settings = AppSettings()
+            # 初始化设置（使用全局单例）
+            self.settings = get_app_settings()
             await self.settings.load()
 
             # 初始化存储
             self.storage = LocalStorage()
             self.storage.initialize()
 
-            # 初始化AI管理器
+            # 初始化AI管理器 - 需要先解密密钥
             ai_manager = get_ai_manager()
-            if self.settings.ai_api_key:
-                ai_manager.initialize(
-                    api_key=self.settings.ai_api_key,
-                    provider=self.settings.ai_provider,
-                    base_url=self.settings.ai_base_url,
-                    model=self.settings.ai_model
-                )
-                logger.info("AI管理器初始化完成")
-                # 静默测试AI连接
-                self.page.run_task(self._silent_test_ai_connection)
+            # 获取当前供应商的配置并解密
+            current_provider = self.settings.ai_provider
+            provider_config = self.settings.config.ai_providers_config.get(current_provider)
+            if provider_config and provider_config.api_key:
+                # 解密密钥
+                from src.config.settings import _simple_decrypt
+                api_key = _simple_decrypt(provider_config.api_key) or provider_config.api_key
+                if api_key:
+                    ai_manager.initialize(
+                        api_key=api_key,
+                        provider=current_provider,
+                        base_url=provider_config.base_url,
+                        model=provider_config.model
+                    )
+                    logger.info("AI管理器初始化完成")
+                    # 静默测试AI连接
+                    self.page.run_task(self._silent_test_ai_connection)
+                else:
+                    logger.info("AI管理器未初始化（密钥解密失败）")
             else:
                 logger.info("AI管理器未初始化（无API密钥）")
 

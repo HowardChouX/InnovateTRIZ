@@ -120,12 +120,47 @@ class AnalysisSession:
 
 
 @dataclass
+class ProviderConfig:
+    """AI供应商配置"""
+    api_key: Optional[str] = None  # API密钥
+    base_url: str = "https://api.deepseek.com/v1"  # Base URL
+    model: str = "deepseek-chat"  # 模型
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ProviderConfig':
+        """从字典创建实例"""
+        return cls(**data)
+
+
+# 默认供应商配置
+DEFAULT_PROVIDER_CONFIGS = {
+    "deepseek": ProviderConfig(
+        api_key=None,
+        base_url="https://api.deepseek.com/v1",
+        model="deepseek-chat"
+    ),
+    "openrouter": ProviderConfig(
+        api_key=None,
+        base_url="https://openrouter.ai/api/v1",
+        model="deepseek/deepseek-chat"
+    ),
+    "openai-format": ProviderConfig(
+        api_key=None,
+        base_url="https://api.openai.com/v1",
+        model="gpt-4"
+    ),
+}
+
+
+@dataclass
 class AppConfig:
     """应用配置"""
-    ai_api_key: Optional[str] = None  # AI API密钥
-    ai_provider: str = "deepseek"  # AI提供商
-    ai_base_url: str = "https://api.deepseek.com"  # AI Base URL（不含/v1后缀，AsyncOpenAI会自动处理）
-    ai_model: str = "deepseek-chat"  # AI模型
+    ai_provider: str = "deepseek"  # 当前AI提供商
+    ai_providers_config: Dict[str, ProviderConfig] = field(default_factory=lambda: DEFAULT_PROVIDER_CONFIGS.copy())
     default_matrix_type: str = "39"  # 默认矩阵类型
     default_solution_count: int = 5  # 默认解决方案数量
     enable_history: bool = True  # 启用历史记录
@@ -133,14 +168,63 @@ class AppConfig:
     language: str = "zh"  # 界面语言
     theme: str = "light"  # 主题模式
 
+    # 兼容旧字段（从旧配置迁移时使用）
+    ai_api_key: Optional[str] = None
+    ai_base_url: str = "https://api.deepseek.com"
+    ai_model: str = "deepseek-chat"
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
-        return asdict(self)
+        data = asdict(self)
+        # 将 providers_config 转换为普通字典
+        data["ai_providers_config"] = {
+            k: v.to_dict() if isinstance(v, ProviderConfig) else v
+            for k, v in self.ai_providers_config.items()
+        }
+        return data
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'AppConfig':
         """从字典创建实例"""
+        # 迁移旧格式配置
+        if "ai_providers_config" not in data:
+            providers_config = DEFAULT_PROVIDER_CONFIGS.copy()
+            current_provider = data.get("ai_provider", "deepseek")
+
+            # 迁移旧格式到新格式
+            if current_provider in providers_config:
+                old_config = providers_config[current_provider]
+                if data.get("ai_api_key"):
+                    old_config.api_key = data["ai_api_key"]
+                if data.get("ai_base_url"):
+                    old_config.base_url = data["ai_base_url"]
+                if data.get("ai_model"):
+                    old_config.model = data["ai_model"]
+
+            data["ai_providers_config"] = {
+                k: v.to_dict() if isinstance(v, ProviderConfig) else v
+                for k, v in providers_config.items()
+            }
+
+        # 确保 providers_config 是 ProviderConfig 对象
+        if "ai_providers_config" in data and isinstance(data["ai_providers_config"], dict):
+            data["ai_providers_config"] = {
+                k: ProviderConfig.from_dict(v) if isinstance(v, dict) else v
+                for k, v in data["ai_providers_config"].items()
+            }
+
         return cls(**data)
+
+    def get_current_provider_config(self) -> ProviderConfig:
+        """获取当前供应商配置"""
+        return self.ai_providers_config.get(
+            self.ai_provider,
+            DEFAULT_PROVIDER_CONFIGS.get(self.ai_provider, ProviderConfig())
+        )
+
+    def set_provider_config(self, provider: str, config: ProviderConfig):
+        """设置指定供应商的配置"""
+        self.ai_providers_config[provider] = config
 
 
 @dataclass

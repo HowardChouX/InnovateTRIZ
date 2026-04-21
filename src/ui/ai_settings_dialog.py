@@ -58,23 +58,71 @@ class AISettingsDialog:
         self.page.show_dialog(self.dialog)
 
     def _load_current_settings(self):
-        """加载当前设置"""
-        from src.ai.ai_client import get_ai_manager
+        """加载当前设置（在打开对话框时调用，解密所有供应商密钥到内存字典）"""
+        from src.config.settings import get_app_settings
+        from src.config.settings import _simple_decrypt
+        import base64
 
-        ai_manager = get_ai_manager()
+        # AppSettings 是单例
+        settings = get_app_settings()
 
-        if ai_manager.is_enabled():
-            self.settings["provider"] = ai_manager.config.get("provider", "deepseek")
-            self.settings["api_key"] = ai_manager.config.get("api_key", "")
-            self.settings["base_url"] = ai_manager.config.get("base_url", "https://api.deepseek.com/v1")
-            self.settings["model"] = ai_manager.config.get("model", "deepseek-chat")
+        def try_decrypt(api_key: str) -> str:
+            """循环解密直到得到明文（处理双重或多重编码）"""
+            if not api_key:
+                return api_key
+            for _ in range(10):
+                decrypted = _simple_decrypt(api_key)
+                if not decrypted:
+                    break
+                # 检查解密结果是否像 API key（sk- 开头）
+                if decrypted.startswith('sk-') or decrypted.startswith('api-'):
+                    return decrypted
+                # 如果不是 sk- 格式，尝试再次解密
+                api_key = decrypted
+            return api_key
+
+        # 解密所有供应商的API密钥，存到 self.settings["providers_data"] 字典
+        providers_data = {}
+        for provider, provider_config in settings.config.ai_providers_config.items():
+            if provider_config:
+                api_key = provider_config.api_key or ""
+                if api_key:
+                    api_key = try_decrypt(api_key)
+                providers_data[provider] = {
+                    "api_key": api_key,
+                    "base_url": provider_config.base_url,
+                    "model": provider_config.model
+                }
+            else:
+                providers_data[provider] = {
+                    "api_key": "",
+                    "base_url": "",
+                    "model": ""
+                }
+
+        self.settings["providers_data"] = providers_data
+
+        # 使用当前供应商的配置
+        current_provider = settings.config.ai_provider
+        self.settings["provider"] = current_provider
+        if current_provider in providers_data:
+            self.settings["api_key"] = providers_data[current_provider]["api_key"]
+            self.settings["base_url"] = providers_data[current_provider]["base_url"]
+            self.settings["model"] = providers_data[current_provider]["model"]
         else:
-            self.settings = {
-                "provider": "deepseek",
-                "api_key": "",
-                "base_url": "https://api.deepseek.com/v1",
-                "model": "deepseek-chat"
-            }
+            self.settings["api_key"] = ""
+            self.settings["base_url"] = "https://api.deepseek.com/v1"
+            self.settings["model"] = "deepseek-chat"
+
+        # 如果 UI 控件已创建，更新它们的值
+        if self.providerDropdown is not None:
+            self.providerDropdown.value = self.settings["provider"]
+        if self.apiKeyField is not None:
+            self.apiKeyField.value = self.settings["api_key"]
+        if self.baseUrlField is not None:
+            self.baseUrlField.value = self.settings["base_url"]
+        if self.modelField is not None:
+            self.modelField.value = self.settings["model"]
 
     def _create_dialog(self):
         """创建对话框"""
@@ -82,9 +130,9 @@ class AISettingsDialog:
             label="AI提供商",
             value=self.settings["provider"],
             options=[
-                ft.dropdown.Option("openrouter", "OpenRouter"),
                 ft.dropdown.Option("deepseek", "DeepSeek"),
-                ft.dropdown.Option("openai", "OpenAI"),
+                ft.dropdown.Option("openrouter", "OpenRouter"),
+                ft.dropdown.Option("openai-format", "Openai-format"),
             ],
             on_select=self._on_provider_changed
         )
@@ -144,7 +192,7 @@ class AISettingsDialog:
                     vertical_alignment=ft.CrossAxisAlignment.CENTER
                 ),
                 ft.Container(height=5),
-                ft.Text("提示: API密钥将安全存储在本地", size=12, color=ft.Colors.GREY)
+                ft.Text("密钥已使用算法加密安全的保存到本地", size=12, color=ft.Colors.GREY)
             ],
             spacing=15,
             scroll=ft.ScrollMode.AUTO
@@ -165,15 +213,25 @@ class AISettingsDialog:
         """提供商变更"""
         assert self.baseUrlField is not None and self.modelField is not None
         provider = e.control.value if e.control.value else "deepseek"
-        if provider == "deepseek":
-            self.baseUrlField.value = "https://api.deepseek.com/v1"
-            self.modelField.value = "deepseek-chat"
-        elif provider == "openrouter":
-            self.baseUrlField.value = "https://openrouter.ai/api/v1"
-            self.modelField.value = "deepseek/deepseek-chat"
-        elif provider == "openai":
-            self.baseUrlField.value = "https://api.openai.com/v1"
-            self.modelField.value = "gpt-4"
+
+        # 从 providers_data 字典读取（切换时不解密）
+        providers_data = self.settings.get("providers_data", {})
+        if provider in providers_data:
+            self.baseUrlField.value = providers_data[provider].get("base_url", "")
+            self.modelField.value = providers_data[provider].get("model", "")
+            if self.apiKeyField:
+                self.apiKeyField.value = providers_data[provider].get("api_key", "")
+        else:
+            # 使用默认值
+            if provider == "deepseek":
+                self.baseUrlField.value = "https://api.deepseek.com/v1"
+                self.modelField.value = "deepseek-chat"
+            elif provider == "openrouter":
+                self.baseUrlField.value = "https://openrouter.ai/api/v1"
+                self.modelField.value = "deepseek/deepseek-chat"
+            elif provider == "openai-format":
+                self.baseUrlField.value = "https://api.openai.com/v1"
+                self.modelField.value = "gpt-4"
         self.page.update()
 
     def _on_cancel(self, _: ft.Event[ft.TextButton]):
@@ -203,15 +261,20 @@ class AISettingsDialog:
         """异步保存设置"""
         from src.config.settings import get_app_settings
         from src.ai.ai_client import get_ai_manager
+        from src.data.models import ProviderConfig
 
         try:
             settings = get_app_settings()
             await settings.load()
 
-            settings.ai_api_key = api_key
+            # 更新当前供应商
             settings.ai_provider = provider
-            settings.ai_base_url = base_url
-            settings.ai_model = model
+
+            # 更新对应供应商的配置
+            settings.config.set_provider_config(
+                provider,
+                ProviderConfig(api_key=api_key, base_url=base_url, model=model)
+            )
 
             success = await settings.save()
             if not success:

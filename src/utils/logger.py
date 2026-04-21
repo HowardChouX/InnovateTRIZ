@@ -14,13 +14,25 @@ from typing import Optional, Dict, Any
 from functools import wraps
 import threading
 import platform
+from logging.handlers import RotatingFileHandler
 
 # 全局日志配置锁
 _config_lock = threading.Lock()
 
-# Android环境检测
-IS_ANDROID = "ANDROID" in os.environ.get("ANDROID_ROOT", "") or \
-             "ANDROID_DATA" in os.environ
+
+def is_android() -> bool:
+    """统一Android环境检测"""
+    if sys.platform == "android":
+        return True
+    if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
+        return True
+    if "ANDROID_DATA" in os.environ:
+        return True
+    return False
+
+
+# 保持向后兼容
+IS_ANDROID = is_android()
 
 # 日志级别
 LOG_LEVELS = {
@@ -38,9 +50,33 @@ DEFAULT_LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+# 日志文件配置
+MAX_LOG_SIZE = 5 * 1024 * 1024  # 5MB
+BACKUP_COUNT = 3
+
+
+def _get_log_dir() -> Path:
+    """获取日志目录路径（兼容Android）"""
+    if is_android():
+        # Android 环境
+        app_data = os.getenv("FLET_APP_STORAGE_DATA")
+        if app_data:
+            return Path(app_data) / "logs"
+        return Path("/data/data/com.example.triz/files/logs")
+    else:
+        # 桌面环境
+        config_dir = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+        return Path(config_dir) / "triz-assistant" / "logs"
+
+
+def _get_log_file_path() -> Path:
+    """获取日志文件路径"""
+    return _get_log_dir() / "triz_app.log"
+
+
 # 日志文件路径
-LOG_DIR = Path("logs")
-LOG_FILE = LOG_DIR / "triz_app.log"
+LOG_DIR = _get_log_dir()
+LOG_FILE = _get_log_file_path()
 TEST_LOG_FILE = LOG_DIR / "test_log.txt"
 
 
@@ -73,7 +109,10 @@ class TRIZLogger:
     def _setup_logging(self):
         """设置日志系统"""
         # 确保日志目录存在
-        LOG_DIR.mkdir(exist_ok=True)
+        try:
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            print(f"警告: 无法创建日志目录 {LOG_DIR}: {e}")
 
         # 创建根日志器
         root_logger = logging.getLogger("TRIZ")
@@ -87,23 +126,35 @@ class TRIZLogger:
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
 
-        # 文件处理器
-        file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8", mode="a")
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
+        # 文件处理器（带轮转）
+        try:
+            file_handler = RotatingFileHandler(
+                LOG_FILE,
+                encoding="utf-8",
+                mode="a",
+                maxBytes=MAX_LOG_SIZE,
+                backupCount=BACKUP_COUNT
+            )
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
+            root_logger.addHandler(file_handler)
+        except Exception as e:
+            print(f"警告: 无法创建文件日志处理器: {e}")
 
         # 测试专用处理器（更详细）
-        test_handler = logging.FileHandler(TEST_LOG_FILE, encoding="utf-8", mode="w")
-        test_handler.setLevel(logging.DEBUG)
-        test_handler.setFormatter(logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
-            LOG_DATE_FORMAT
-        ))
+        try:
+            test_handler = logging.FileHandler(TEST_LOG_FILE, encoding="utf-8", mode="w")
+            test_handler.setLevel(logging.DEBUG)
+            test_handler.setFormatter(logging.Formatter(
+                "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
+                LOG_DATE_FORMAT
+            ))
+            root_logger.addHandler(test_handler)
+        except Exception as e:
+            print(f"警告: 无法创建测试日志处理器: {e}")
 
-        # 添加处理器
+        # 添加控制台处理器
         root_logger.addHandler(console_handler)
-        root_logger.addHandler(file_handler)
-        root_logger.addHandler(test_handler)
 
         self._main_logger = root_logger
         self._test_logger = logging.getLogger("TRIZ.TEST")

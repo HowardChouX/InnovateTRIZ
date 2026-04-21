@@ -391,17 +391,25 @@ class SettingsTab(TabContent):
             self._show_snack_bar("没有可导出的历史记录")
             return
 
-        # 保存到文件
+        # 保存到应用私有存储目录
+        import os
         from datetime import datetime
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"triz_history_{timestamp}.{format}"
-        filepath = f"exports/{filename}"
+
+        # 使用 FLET_APP_STORAGE_DATA 路径（Android 专用存储）
+        app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
+        if app_data_path:
+            exports_dir = os.path.join(app_data_path, "exports")
+        else:
+            # 回退到相对路径（桌面模式）
+            exports_dir = "exports"
+
+        os.makedirs(exports_dir, exist_ok=True)
+        filepath = os.path.join(exports_dir, filename)
 
         try:
-            import os
-
-            os.makedirs("exports", exist_ok=True)
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
             self._show_snack_bar(f"已导出到 {filepath}")

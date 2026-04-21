@@ -10,7 +10,7 @@ import base64
 from typing import Optional, Dict, Any
 from pathlib import Path
 
-from ..data.models import AppConfig
+from ..data.models import AppConfig, ProviderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -94,21 +94,12 @@ class AppSettings:
                 pass  # Android上某些目录可能无法创建
 
     async def load(self):
-        """加载设置"""
+        """加载设置（不解密，密钥在打开设置对话框时解密）"""
         try:
             if self.config_file.exists():
                 with open(self.config_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.config = AppConfig.from_dict(data)
-
-                # 解密API密钥
-                if self.config.ai_api_key:
-                    decrypted = _simple_decrypt(self.config.ai_api_key)
-                    if decrypted:
-                        self.config.ai_api_key = decrypted
-                    else:
-                        # 如果解密失败，尝试直接使用（可能是旧格式）
-                        pass
 
                 logger.info(f"设置已从 {self.config_file} 加载")
             else:
@@ -122,10 +113,19 @@ class AppSettings:
 
     async def _load_from_env(self):
         """从环境变量加载设置"""
-        # AI配置
-        self.config.ai_api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
-        if os.environ.get("OPENROUTER_API_KEY"):
+        # AI配置 - 从环境变量加载到当前供应商配置
+        current_provider = self.config.ai_provider
+        provider_config = self.config.ai_providers_config.get(current_provider)
+        if not provider_config:
+            provider_config = ProviderConfig()
+            self.config.ai_providers_config[current_provider] = provider_config
+
+        if os.environ.get("DEEPSEEK_API_KEY"):
+            self.config.ai_provider = "deepseek"
+            self.config.ai_providers_config["deepseek"].api_key = os.environ.get("DEEPSEEK_API_KEY")
+        elif os.environ.get("OPENROUTER_API_KEY"):
             self.config.ai_provider = "openrouter"
+            self.config.ai_providers_config["openrouter"].api_key = os.environ.get("OPENROUTER_API_KEY")
 
         # 应用配置
         language = os.environ.get("APP_LANGUAGE")
@@ -141,9 +141,10 @@ class AppSettings:
         try:
             data = self.config.to_dict()
 
-            # API密钥使用简单加密存储（安全但非军事级别）
-            if data.get("ai_api_key"):
-                data["ai_api_key"] = _simple_encrypt(data["ai_api_key"])
+            # 加密所有供应商的API密钥
+            for provider, config in data.get("ai_providers_config", {}).items():
+                if config.get("api_key"):
+                    config["api_key"] = _simple_encrypt(config["api_key"])
 
             with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
@@ -154,6 +155,17 @@ class AppSettings:
         except Exception as e:
             logger.error(f"保存设置失败: {e}")
             return False
+
+    def decrypt_all_provider_keys(self):
+        """解密所有供应商的API密钥（仅在打开设置对话框时调用一次）"""
+        for provider, provider_config in self.config.ai_providers_config.items():
+            if provider_config and provider_config.api_key:
+                decrypted = _simple_decrypt(provider_config.api_key)
+                if decrypted:
+                    provider_config.api_key = decrypted
+                else:
+                    # 如果解密失败，保留原值（可能是明文）
+                    pass
 
     def get(self, key: str, default=None) -> Any:
         """获取设置值"""
@@ -192,13 +204,16 @@ class AppSettings:
     # 便捷属性访问
     @property
     def ai_api_key(self) -> Optional[str]:
-        """获取AI API密钥"""
-        return self.config.ai_api_key
+        """获取当前供应商的AI API密钥"""
+        return self.config.get_current_provider_config().api_key
 
     @ai_api_key.setter
     def ai_api_key(self, value: str):
-        """设置AI API密钥"""
-        self.config.ai_api_key = value
+        """设置当前供应商的AI API密钥"""
+        provider = self.config.ai_provider
+        if provider not in self.config.ai_providers_config:
+            self.config.ai_providers_config[provider] = ProviderConfig()
+        self.config.ai_providers_config[provider].api_key = value
 
     @property
     def ai_provider(self) -> str:
@@ -208,28 +223,34 @@ class AppSettings:
     @ai_provider.setter
     def ai_provider(self, value: str):
         """设置AI提供商"""
-        if value in ["deepseek", "openrouter", "openai"]:
+        if value in ["deepseek", "openrouter", "openai-format"]:
             self.config.ai_provider = value
 
     @property
     def ai_base_url(self) -> str:
-        """获取AI Base URL"""
-        return self.config.ai_base_url
+        """获取当前供应商的AI Base URL"""
+        return self.config.get_current_provider_config().base_url
 
     @ai_base_url.setter
     def ai_base_url(self, value: str):
-        """设置AI Base URL"""
-        self.config.ai_base_url = value
+        """设置当前供应商的AI Base URL"""
+        provider = self.config.ai_provider
+        if provider not in self.config.ai_providers_config:
+            self.config.ai_providers_config[provider] = ProviderConfig()
+        self.config.ai_providers_config[provider].base_url = value
 
     @property
     def ai_model(self) -> str:
-        """获取AI模型"""
-        return self.config.ai_model
+        """获取当前供应商的AI模型"""
+        return self.config.get_current_provider_config().model
 
     @ai_model.setter
     def ai_model(self, value: str):
-        """设置AI模型"""
-        self.config.ai_model = value
+        """设置当前供应商的AI模型"""
+        provider = self.config.ai_provider
+        if provider not in self.config.ai_providers_config:
+            self.config.ai_providers_config[provider] = ProviderConfig()
+        self.config.ai_providers_config[provider].model = value
 
     @property
     def language(self) -> str:
@@ -276,24 +297,25 @@ class AppSettings:
 
     def is_ai_configured(self) -> bool:
         """检查AI是否已配置"""
-        return bool(self.config.ai_api_key)
+        return bool(self.ai_api_key)
 
     def get_ai_config_summary(self) -> Dict[str, Any]:
         """获取AI配置摘要"""
         return {
             "configured": self.is_ai_configured(),
             "provider": self.config.ai_provider,
-            "has_api_key": bool(self.config.ai_api_key)
+            "has_api_key": bool(self.ai_api_key)
         }
 
 
 # 全局设置实例
 _app_settings: Optional[AppSettings] = None
+_settings_loaded: bool = False
 
 
 def get_app_settings() -> AppSettings:
-    """获取全局设置实例"""
-    global _app_settings
+    """获取全局设置实例（已加载）"""
+    global _app_settings, _settings_loaded
     if _app_settings is None:
         _app_settings = AppSettings()
     return _app_settings
