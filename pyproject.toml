@@ -121,3 +121,10 @@ pythonpath = ["."]
 
 [project.scripts]
 triz-ai = "main:main"
+
+[tool.flet]
+product = "TRIZ AI Assistant"
+org = "com.innovatetriz"
+
+[tool.flet.app]
+path = "."

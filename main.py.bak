@@ -36,11 +36,7 @@ logging.basicConfig(
 
 # 尝试添加文件日志处理器（Android上可能失败）
 try:
-    app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
-    if app_data_path:
-        log_dir = Path(app_data_path) / "logs"
-    else:
-        log_dir = Path.home() / ".config" / "triz-assistant" / "logs"
+    log_dir = Path.home() / ".config" / "triz-assistant" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_dir / "triz_app.log", encoding="utf-8")
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))

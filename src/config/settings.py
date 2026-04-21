@@ -58,14 +58,15 @@ class AppSettings:
 
     def _get_config_path(self) -> Path:
         """获取配置文件路径"""
-        # 优先使用用户配置目录
+        # 方法1: 使用 FLET_APP_STORAGE_DATA 环境变量（最推荐）
+        app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
+        if app_data_path:
+            config_path = Path(app_data_path) / "config.json"
+            return config_path
+
+        # 方法2: 非 Android 路径
         if os.name == "nt":  # Windows
             config_dir = Path(os.environ.get("APPDATA", "")) / "TRIZAssistant"
-        elif _is_android():
-            # Android环境 - 使用应用私有数据目录
-            config_dir = Path("/data/data/com.example.triz/files")
-            config_dir.mkdir(parents=True, exist_ok=True)
-            return config_dir / "config.json"
         else:  # Linux/Mac
             config_dir = Path.home() / ".config" / "triz-assistant"
 
@@ -76,13 +77,21 @@ class AppSettings:
         """确保必要的目录存在"""
         directories = [
             self.config_file.parent,  # 配置目录
-            Path("exports"),  # 导出目录
-            Path("cache"),  # 缓存目录
-            Path("logs"),  # 日志目录
         ]
 
+        if not _is_android():
+            # 非Android环境添加相对路径目录
+            directories.extend([
+                Path("exports"),  # 导出目录
+                Path("cache"),  # 缓存目录
+                Path("logs"),  # 日志目录
+            ])
+
         for directory in directories:
-            directory.mkdir(parents=True, exist_ok=True)
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except:
+                pass  # Android上某些目录可能无法创建
 
     async def load(self):
         """加载设置"""

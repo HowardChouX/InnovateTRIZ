@@ -27,14 +27,28 @@ def _is_android() -> bool:
     return False
 
 
+def _get_storage_dir() -> Path:
+    """获取存储目录，兼容Android"""
+    # 方法1: 使用 FLET_APP_STORAGE_DATA 环境变量（最推荐）
+    app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
+    if app_data_path:
+        storage_dir = Path(app_data_path)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        return storage_dir
+
+    # 方法2: 回退到 home 目录
+    storage_dir = Path.home() / ".config" / "triz-assistant"
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    return storage_dir
+
+
 class LocalStorage:
     """本地存储管理器"""
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         # 使用统一的存储路径
         if db_path is None:
-            storage_dir = Path.home() / ".config" / "triz-assistant"
-            storage_dir.mkdir(parents=True, exist_ok=True)
+            storage_dir = _get_storage_dir()
             db_path = str(storage_dir / "triz_sessions.db")
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
@@ -112,10 +126,18 @@ class LocalStorage:
 
         # 如果表已存在，尝试添加新列（兼容旧数据库）
         try:
-            cursor.execute("ALTER TABLE solutions ADD COLUMN technical_solution TEXT DEFAULT ''")
-            cursor.execute("ALTER TABLE solutions ADD COLUMN innovation_point TEXT DEFAULT ''")
-            cursor.execute("ALTER TABLE solutions ADD COLUMN cross_domain_cases TEXT DEFAULT '[]'")
-            cursor.execute("ALTER TABLE solutions ADD COLUMN expected_effect TEXT DEFAULT ''")
+            cursor.execute(
+                "ALTER TABLE solutions ADD COLUMN technical_solution TEXT DEFAULT ''"
+            )
+            cursor.execute(
+                "ALTER TABLE solutions ADD COLUMN innovation_point TEXT DEFAULT ''"
+            )
+            cursor.execute(
+                "ALTER TABLE solutions ADD COLUMN cross_domain_cases TEXT DEFAULT '[]'"
+            )
+            cursor.execute(
+                "ALTER TABLE solutions ADD COLUMN expected_effect TEXT DEFAULT ''"
+            )
         except sqlite3.OperationalError:
             pass  # 列已存在
 
@@ -129,9 +151,15 @@ class LocalStorage:
         """)
 
         # 创建索引
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_created ON analysis_sessions(created_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_solutions_session ON solutions(session_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_solutions_principle ON solutions(principle_id)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_created ON analysis_sessions(created_at)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_solutions_session ON solutions(session_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_solutions_principle ON solutions(principle_id)"
+        )
 
         self.conn.commit()
         logger.info("数据库表创建完成")
@@ -154,49 +182,60 @@ class LocalStorage:
             cursor = self.conn.cursor()
 
             # 插入会话
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO analysis_sessions
                 (id, problem, matrix_type, improving_param, worsening_param, ai_enabled, solution_count, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                session.id,
-                session.problem,
-                session.matrix_type,
-                session.improving_param,
-                session.worsening_param,
-                1 if session.ai_enabled else 0,
-                len(session.solutions),
-                session.created_at.isoformat()
-            ))
+            """,
+                (
+                    session.id,
+                    session.problem,
+                    session.matrix_type,
+                    session.improving_param,
+                    session.worsening_param,
+                    1 if session.ai_enabled else 0,
+                    len(session.solutions),
+                    session.created_at.isoformat(),
+                ),
+            )
 
             # 插入解决方案
             for solution in session.solutions:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO solutions
                     (id, session_id, principle_id, principle_name, description,
                      confidence, is_ai_generated, category, examples, created_at,
                      technical_solution, innovation_point, cross_domain_cases, expected_effect)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    solution.id,
-                    session.id,
-                    solution.principle_id,
-                    solution.principle_name,
-                    solution.description,
-                    solution.confidence,
-                    1 if solution.is_ai_generated else 0,
-                    solution.category,
-                    json.dumps(solution.examples, ensure_ascii=False),
-                    solution.created_at.isoformat(),
-                    # 4字段结构化输出
-                    getattr(solution, 'technical_solution', '') or '',
-                    getattr(solution, 'innovation_point', '') or '',
-                    json.dumps(getattr(solution, 'cross_domain_cases', []) or [], ensure_ascii=False),
-                    getattr(solution, 'expected_effect', '') or ''
-                ))
+                """,
+                    (
+                        solution.id,
+                        session.id,
+                        solution.principle_id,
+                        solution.principle_name,
+                        solution.description,
+                        solution.confidence,
+                        1 if solution.is_ai_generated else 0,
+                        solution.category,
+                        json.dumps(solution.examples, ensure_ascii=False),
+                        solution.created_at.isoformat(),
+                        # 4字段结构化输出
+                        getattr(solution, "technical_solution", "") or "",
+                        getattr(solution, "innovation_point", "") or "",
+                        json.dumps(
+                            getattr(solution, "cross_domain_cases", []) or [],
+                            ensure_ascii=False,
+                        ),
+                        getattr(solution, "expected_effect", "") or "",
+                    ),
+                )
 
             self.conn.commit()
-            logger.info(f"会话保存成功: {session.id}, {len(session.solutions)}个解决方案")
+            logger.info(
+                f"会话保存成功: {session.id}, {len(session.solutions)}个解决方案"
+            )
             return True
 
         except sqlite3.Error as e:
@@ -221,14 +260,19 @@ class LocalStorage:
             cursor = self.conn.cursor()
 
             # 获取会话信息
-            cursor.execute("SELECT * FROM analysis_sessions WHERE id = ?", (session_id,))
+            cursor.execute(
+                "SELECT * FROM analysis_sessions WHERE id = ?", (session_id,)
+            )
             session_row = cursor.fetchone()
 
             if not session_row:
                 return None
 
             # 获取解决方案
-            cursor.execute("SELECT * FROM solutions WHERE session_id = ? ORDER BY created_at", (session_id,))
+            cursor.execute(
+                "SELECT * FROM solutions WHERE session_id = ? ORDER BY created_at",
+                (session_id,),
+            )
             solution_rows = cursor.fetchall()
 
             # 构建解决方案列表
@@ -236,11 +280,17 @@ class LocalStorage:
             for row in solution_rows:
                 # 转换为字典以支持 .get() 方法
                 row_dict = dict(row)
-                examples = json.loads(row_dict["examples"]) if row_dict["examples"] else []
+                examples = (
+                    json.loads(row_dict["examples"]) if row_dict["examples"] else []
+                )
                 # 尝试获取4字段数据（新增字段，兼容旧数据）
                 cross_domain_cases = []
                 try:
-                    cross_domain_cases = json.loads(row_dict.get("cross_domain_cases", "[]")) if row_dict.get("cross_domain_cases") else []
+                    cross_domain_cases = (
+                        json.loads(row_dict.get("cross_domain_cases", "[]"))
+                        if row_dict.get("cross_domain_cases")
+                        else []
+                    )
                 except (json.JSONDecodeError, TypeError):
                     cross_domain_cases = []
 
@@ -258,7 +308,7 @@ class LocalStorage:
                     technical_solution=row_dict.get("technical_solution", "") or "",
                     innovation_point=row_dict.get("innovation_point", "") or "",
                     cross_domain_cases=cross_domain_cases,
-                    expected_effect=row_dict.get("expected_effect", "") or ""
+                    expected_effect=row_dict.get("expected_effect", "") or "",
                 )
                 solutions.append(solution)
 
@@ -274,7 +324,7 @@ class LocalStorage:
                 ai_enabled=bool(session_row_dict["ai_enabled"]),
                 solution_count=session_row_dict["solution_count"],
                 solutions=solutions,
-                created_at=datetime.fromisoformat(session_row_dict["created_at"])
+                created_at=datetime.fromisoformat(session_row_dict["created_at"]),
             )
 
             return session
@@ -301,11 +351,13 @@ class LocalStorage:
             cursor = self.conn.cursor()
             cursor.execute(
                 "SELECT id FROM analysis_sessions WHERE problem = ? ORDER BY created_at DESC LIMIT 1",
-                (problem,)
+                (problem,),
             )
             row = cursor.fetchone()
             result = row["id"] if row else None
-            logger.info(f"find_session_by_problem: problem={problem[:30]}..., result={result}")
+            logger.info(
+                f"find_session_by_problem: problem={problem[:30]}..., result={result}"
+            )
             return result
         except sqlite3.Error as e:
             logger.error(f"查找会话失败: {e}")
@@ -337,40 +389,50 @@ class LocalStorage:
                 # 序列化列表字段
                 examples_json = json.dumps(solution.examples, ensure_ascii=False)
                 cross_domain_cases_json = json.dumps(
-                    solution.cross_domain_cases if hasattr(solution, 'cross_domain_cases') else [],
-                    ensure_ascii=False
+                    (
+                        solution.cross_domain_cases
+                        if hasattr(solution, "cross_domain_cases")
+                        else []
+                    ),
+                    ensure_ascii=False,
                 )
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO solutions
                     (id, session_id, principle_id, principle_name, description,
                      confidence, is_ai_generated, category, examples,
                      technical_solution, innovation_point, cross_domain_cases,
                      expected_effect, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    solution_id,
-                    session_id,
-                    solution.principle_id,
-                    solution.principle_name,
-                    solution.description,
-                    solution.confidence,
-                    solution.is_ai_generated,
-                    solution.category,
-                    examples_json,
-                    getattr(solution, 'technical_solution', '') or '',
-                    getattr(solution, 'innovation_point', '') or '',
-                    cross_domain_cases_json,
-                    getattr(solution, 'expected_effect', '') or '',
-                    now
-                ))
+                """,
+                    (
+                        solution_id,
+                        session_id,
+                        solution.principle_id,
+                        solution.principle_name,
+                        solution.description,
+                        solution.confidence,
+                        solution.is_ai_generated,
+                        solution.category,
+                        examples_json,
+                        getattr(solution, "technical_solution", "") or "",
+                        getattr(solution, "innovation_point", "") or "",
+                        cross_domain_cases_json,
+                        getattr(solution, "expected_effect", "") or "",
+                        now,
+                    ),
+                )
 
             # 更新会话的解决方案数量
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE analysis_sessions
                 SET solution_count = solution_count + ?
                 WHERE id = ?
-            """, (len(solutions), session_id))
+            """,
+                (len(solutions), session_id),
+            )
 
             self.conn.commit()
             logger.info(f"成功追加 {len(solutions)} 个解决方案到会话 {session_id}")
@@ -431,14 +493,20 @@ class LocalStorage:
                         ai_enabled=bool(row["ai_enabled"]),
                         solution_count=row["solution_count"],
                         solutions=[],
-                        created_at=datetime.fromisoformat(row["created_at"])
+                        created_at=datetime.fromisoformat(row["created_at"]),
                     )
 
                 # 添加解决方案（如果有）
                 if row["sol_id"]:
                     try:
-                        examples = json.loads(row["examples"]) if row["examples"] else []
-                        cross_domain_cases = json.loads(row["cross_domain_cases"]) if row["cross_domain_cases"] else []
+                        examples = (
+                            json.loads(row["examples"]) if row["examples"] else []
+                        )
+                        cross_domain_cases = (
+                            json.loads(row["cross_domain_cases"])
+                            if row["cross_domain_cases"]
+                            else []
+                        )
                     except (json.JSONDecodeError, TypeError):
                         examples = []
                         cross_domain_cases = []
@@ -456,12 +524,12 @@ class LocalStorage:
                         technical_solution=row.get("technical_solution") or "",
                         innovation_point=row.get("innovation_point") or "",
                         cross_domain_cases=cross_domain_cases,
-                        expected_effect=row.get("expected_effect") or ""
+                        expected_effect=row.get("expected_effect") or "",
                     )
                     session_map[session_id].solutions.append(solution)
 
             # 应用分页
-            sessions = list(session_map.values())[offset:offset + limit]
+            sessions = list(session_map.values())[offset : offset + limit]
             logger.info(f"获取 {len(sessions)} 个会话")
 
         except sqlite3.Error as e:
@@ -469,7 +537,9 @@ class LocalStorage:
 
         return sessions
 
-    def get_session_summaries(self, limit: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
+    def get_session_summaries(
+        self, limit: int = 20, offset: int = 0
+    ) -> List[Dict[str, Any]]:
         """
         获取会话摘要列表（性能优化版本，支持分页）
 
@@ -488,7 +558,8 @@ class LocalStorage:
         try:
             cursor = self.conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     id,
                     problem,
@@ -501,18 +572,23 @@ class LocalStorage:
                 FROM analysis_sessions
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
-            """, (limit, offset))
+            """,
+                (limit, offset),
+            )
 
             for row in cursor.fetchall():
                 summary = {
                     "id": row["id"],
-                    "problem_preview": row["problem"][:50] + ("..." if len(row["problem"]) > 50 else ""),
+                    "problem_preview": row["problem"][:50]
+                    + ("..." if len(row["problem"]) > 50 else ""),
                     "matrix_type": row["matrix_type"],
                     "improving_param": row["improving_param"],
                     "worsening_param": row["worsening_param"],
                     "ai_enabled": bool(row["ai_enabled"]),
                     "solution_count": row["solution_count"],
-                    "created_at": datetime.fromisoformat(row["created_at"]).strftime("%Y-%m-%d %H:%M")
+                    "created_at": datetime.fromisoformat(row["created_at"]).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
                 }
                 summaries.append(summary)
 
@@ -587,7 +663,9 @@ class LocalStorage:
             cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
 
             cursor = self.conn.cursor()
-            cursor.execute("DELETE FROM analysis_sessions WHERE created_at < ?", (cutoff_date,))
+            cursor.execute(
+                "DELETE FROM analysis_sessions WHERE created_at < ?", (cutoff_date,)
+            )
             deleted_count = cursor.rowcount
 
             self.conn.commit()
@@ -645,6 +723,7 @@ class LocalStorage:
 
         if format == "json":
             import json
+
             data = {
                 "export_date": datetime.now().isoformat(),
                 "total_sessions": len(sessions),
@@ -661,28 +740,36 @@ class LocalStorage:
                             {
                                 "principle_id": sol.principle_id,
                                 "principle_name": sol.principle_name,
-                                "description": sol.description
+                                "description": sol.description,
                             }
                             for sol in s.solutions
-                        ]
+                        ],
                     }
                     for s in sessions
-                ]
+                ],
             }
             return json.dumps(data, ensure_ascii=False, indent=2)
         else:
-            lines = [f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", f"总会话数: {len(sessions)}", ""]
+            lines = [
+                f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                f"总会话数: {len(sessions)}",
+                "",
+            ]
             for i, s in enumerate(sessions, 1):
                 lines.append(f"=== 会话 {i} ===")
                 lines.append(f"问题: {s.problem}")
                 lines.append(f"改善参数: {s.improving_param or '自动'}")
                 lines.append(f"恶化参数: {s.worsening_param or '自动'}")
-                lines.append(f"矩阵: {s.matrix_type} | AI: {'启用' if s.ai_enabled else '禁用'}")
+                lines.append(
+                    f"矩阵: {s.matrix_type} | AI: {'启用' if s.ai_enabled else '禁用'}"
+                )
                 lines.append(f"时间: {s.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
                 if s.solutions:
                     lines.append("解决方案:")
                     for sol in s.solutions:
-                        lines.append(f"  #{sol.principle_id} {sol.principle_name}: {sol.description[:80]}...")
+                        lines.append(
+                            f"  #{sol.principle_id} {sol.principle_name}: {sol.description[:80]}..."
+                        )
                 lines.append("")
             return "\n".join(lines)
 
@@ -698,7 +785,7 @@ class LocalStorage:
             "total_solutions": 0,
             "ai_sessions": 0,
             "recent_sessions": 0,
-            "database_size": 0
+            "database_size": 0,
         }
 
         if not self.conn:
@@ -716,12 +803,17 @@ class LocalStorage:
             stats["total_solutions"] = cursor.fetchone()["count"]
 
             # AI会话数
-            cursor.execute("SELECT COUNT(*) as count FROM analysis_sessions WHERE ai_enabled = 1")
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM analysis_sessions WHERE ai_enabled = 1"
+            )
             stats["ai_sessions"] = cursor.fetchone()["count"]
 
             # 最近7天会话数
             week_ago = (datetime.now() - timedelta(days=7)).isoformat()
-            cursor.execute("SELECT COUNT(*) as count FROM analysis_sessions WHERE created_at > ?", (week_ago,))
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM analysis_sessions WHERE created_at > ?",
+                (week_ago,),
+            )
             stats["recent_sessions"] = cursor.fetchone()["count"]
 
             # 数据库文件大小
@@ -767,19 +859,21 @@ class LocalStorage:
                     f"恶化参数: {session.worsening_param or '未指定'}",
                     f"AI增强: {'启用' if session.ai_enabled else '禁用'}",
                     f"解决方案数量: {len(session.solutions)}",
-                    f"\n{'='*50}\n"
+                    f"\n{'='*50}\n",
                 ]
 
                 for i, solution in enumerate(session.solutions, 1):
-                    lines.extend([
-                        f"解决方案 #{i}",
-                        f"原理: {solution.principle_name} (ID: {solution.principle_id})",
-                        f"分类: {solution.category}",
-                        f"置信度: {solution.confidence:.0%}",
-                        f"AI生成: {'是' if solution.is_ai_generated else '否'}",
-                        f"描述: {solution.description}",
-                        f"应用示例:"
-                    ])
+                    lines.extend(
+                        [
+                            f"解决方案 #{i}",
+                            f"原理: {solution.principle_name} (ID: {solution.principle_id})",
+                            f"分类: {solution.category}",
+                            f"置信度: {solution.confidence:.0%}",
+                            f"AI生成: {'是' if solution.is_ai_generated else '否'}",
+                            f"描述: {solution.description}",
+                            f"应用示例:",
+                        ]
+                    )
 
                     for example in solution.examples:
                         lines.append(f"  • {example}")
@@ -819,3 +913,4 @@ def get_storage() -> LocalStorage:
         _storage = LocalStorage()
         _storage.initialize()
     return _storage
+
