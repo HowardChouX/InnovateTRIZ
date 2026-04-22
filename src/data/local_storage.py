@@ -3,15 +3,15 @@
 使用SQLite数据库存储分析会话和解决方案
 """
 
-import os
-import sqlite3
 import json
 import logging
+import os
+import sqlite3
 import sys
 import uuid
-from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from .models import AnalysisSession, Solution
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def _is_android() -> bool:
     """检测是否运行在Android环境"""
-    if sys.platform == "android":  # type: ignore[comparison-overlap]
+    if sys.platform == "android":
         return True
     if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
         return True
@@ -37,9 +37,9 @@ def _get_storage_dir() -> Path:
     if app_data_path:
         storage_dir = Path(app_data_path)
     else:
-        # 防御性fallback：使用用户配置目录
-        config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
-        storage_dir = Path(config_home) / "triz-assistant" / "data"
+        # 防御性fallback：使用临时目录（平台通用）
+        import tempfile
+        storage_dir = Path(tempfile.gettempdir()) / "triz-assistant" / "data"
 
     try:
         storage_dir.mkdir(parents=True, exist_ok=True)
@@ -51,16 +51,16 @@ def _get_storage_dir() -> Path:
 class LocalStorage:
     """本地存储管理器"""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         # 使用统一的存储路径
         if db_path is None:
             storage_dir = _get_storage_dir()
             db_path = str(storage_dir / "triz_sessions.db")
         self.db_path = db_path
-        self.conn: Optional[sqlite3.Connection] = None
+        self.conn: sqlite3.Connection | None = None
         self.max_history_items = 100  # 最大历史记录数量
 
-    def initialize(self):
+    def initialize(self) -> None:
         """初始化数据库"""
         try:
             # 确保数据库目录存在
@@ -89,7 +89,7 @@ class LocalStorage:
             logger.error(f"数据库初始化失败: {e}")
             raise
 
-    def _create_tables(self):
+    def _create_tables(self) -> None:
         """创建数据库表"""
         assert self.conn is not None, "数据库未初始化"
         cursor = self.conn.cursor()
@@ -249,7 +249,7 @@ class LocalStorage:
             self.conn.rollback()
             return False
 
-    def get_session(self, session_id: str) -> Optional[AnalysisSession]:
+    def get_session(self, session_id: str) -> AnalysisSession | None:
         """
         获取分析会话
 
@@ -290,7 +290,7 @@ class LocalStorage:
                     json.loads(row_dict["examples"]) if row_dict["examples"] else []
                 )
                 # 尝试获取4字段数据（新增字段，兼容旧数据）
-                cross_domain_cases = []
+                cross_domain_cases: list[Any] = []
                 try:
                     cross_domain_cases = (
                         json.loads(row_dict.get("cross_domain_cases", "[]"))
@@ -339,7 +339,7 @@ class LocalStorage:
             logger.error(f"获取会话失败: {e}")
             return None
 
-    def find_session_by_problem(self, problem: str) -> Optional[str]:
+    def find_session_by_problem(self, problem: str) -> str | None:
         """
         根据问题文本查找已存在的会话ID（精确匹配）
 
@@ -369,7 +369,7 @@ class LocalStorage:
             logger.error(f"查找会话失败: {e}")
             return None
 
-    def append_solutions(self, session_id: str, solutions: List) -> bool:
+    def append_solutions(self, session_id: str, solutions: list) -> bool:
         """
         追加解决方案到已有会话
 
@@ -449,7 +449,7 @@ class LocalStorage:
             self.conn.rollback()
             return False
 
-    def get_sessions(self, limit: int = 50, offset: int = 0) -> List[AnalysisSession]:
+    def get_sessions(self, limit: int = 50, offset: int = 0) -> list[AnalysisSession]:
         """
         获取分析会话列表（使用JOIN优化，避免N+1查询）
 
@@ -460,7 +460,7 @@ class LocalStorage:
         Returns:
             分析会话列表
         """
-        sessions = []
+        sessions: list[AnalysisSession] = []
 
         if not self.conn:
             return sessions
@@ -484,7 +484,7 @@ class LocalStorage:
             """)
 
             # 按会话ID分组
-            session_map: Dict[str, AnalysisSession] = {}
+            session_map: dict[str, AnalysisSession] = {}
             for row in cursor.fetchall():
                 session_id = row["id"]
 
@@ -547,7 +547,7 @@ class LocalStorage:
 
     def get_session_summaries(
         self, limit: int = 20, offset: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         获取会话摘要列表（性能优化版本，支持分页）
 
@@ -558,7 +558,7 @@ class LocalStorage:
         Returns:
             会话摘要列表
         """
-        summaries = []
+        summaries: list[dict[str, Any]] = []
 
         if not self.conn:
             return summaries
@@ -618,7 +618,8 @@ class LocalStorage:
         try:
             cursor = self.conn.cursor()
             cursor.execute("SELECT COUNT(*) as count FROM analysis_sessions")
-            return cursor.fetchone()["count"]
+            row = cursor.fetchone()
+            return row["count"] if row else 0
         except sqlite3.Error as e:
             logger.error(f"获取会话总数失败: {e}")
             return 0
@@ -708,14 +709,14 @@ class LocalStorage:
             self.conn.commit()
 
             logger.info(f"已删除所有 {count} 个会话")
-            return count
+            return int(count)
 
         except sqlite3.Error as e:
             logger.error(f"删除所有会话失败: {e}")
             self.conn.rollback()
             return 0
 
-    def export_all_sessions(self, format: str = "json") -> Optional[str]:
+    def export_all_sessions(self, format: str = "json") -> str | None:
         """
         导出所有会话
 
@@ -781,7 +782,7 @@ class LocalStorage:
                 lines.append("")
             return "\n".join(lines)
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         获取存储统计信息
 
@@ -836,7 +837,7 @@ class LocalStorage:
 
         return stats
 
-    def export_session(self, session_id: str, format: str = "json") -> Optional[str]:
+    def export_session(self, session_id: str, format: str = "json") -> str | None:
         """
         导出会话数据
 
@@ -858,7 +859,7 @@ class LocalStorage:
             elif format.lower() == "txt":
                 # 文本格式导出
                 lines = [
-                    f"TRIZ分析会话导出",
+                    "TRIZ分析会话导出",
                     f"会话ID: {session.id}",
                     f"创建时间: {session.created_at.strftime('%Y-%m-%d %H:%M:%S')}",
                     f"问题描述: {session.problem}",
@@ -879,7 +880,7 @@ class LocalStorage:
                             f"置信度: {solution.confidence:.0%}",
                             f"AI生成: {'是' if solution.is_ai_generated else '否'}",
                             f"描述: {solution.description}",
-                            f"应用示例:",
+                            "应用示例:",
                         ]
                     )
 
@@ -898,20 +899,20 @@ class LocalStorage:
             logger.error(f"导出会话失败: {e}")
             return None
 
-    def close(self):
+    def close(self) -> None:
         """关闭数据库连接"""
         if self.conn:
             self.conn.close()
             self.conn = None
             logger.info("数据库连接已关闭")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """析构函数，确保连接关闭"""
         self.close()
 
 
 # 全局存储实例
-_storage: Optional[LocalStorage] = None
+_storage: LocalStorage | None = None
 
 
 def get_storage() -> LocalStorage:
@@ -921,4 +922,3 @@ def get_storage() -> LocalStorage:
         _storage = LocalStorage()
         _storage.initialize()
     return _storage
-

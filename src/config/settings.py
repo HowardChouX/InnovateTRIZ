@@ -2,13 +2,13 @@
 应用设置管理
 """
 
-import os
-import sys
+import base64
 import json
 import logging
-import base64
-from typing import Optional, Dict, Any
+import os
+import sys
 from pathlib import Path
+from typing import Any
 
 from ..data.models import AppConfig, ProviderConfig
 
@@ -38,14 +38,14 @@ def _simple_decrypt(data: str) -> str:
 
 
 def _is_android() -> bool:
-    """检测是否运行在Android环境"""
+    """检测是否运行在Android环境（Flet官方推荐方式）"""
+    if os.getenv("FLET_PLATFORM") == "android":
+        return True
     if sys.platform == "android":
         return True
     if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
         return True
     if "ANDROID_DATA" in os.environ:
-        return True
-    if os.getenv("FLET_APP_STORAGE_DATA"):
         return True
     return False
 
@@ -53,7 +53,7 @@ def _is_android() -> bool:
 class AppSettings:
     """应用设置管理器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = AppConfig()
         self.config_file = self._get_config_path()
         self._ensure_directories()
@@ -83,7 +83,9 @@ class AppSettings:
             # 相对于应用工作目录（Android上通常是应用私有目录）
             config_dir = Path(".") / ".triz_config"
         else:  # Linux/Mac
-            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(
+                Path.home(), ".config"
+            )
             config_dir = Path(config_home) / "triz-assistant"
 
         try:
@@ -92,7 +94,7 @@ class AppSettings:
             pass
         return config_dir / "config.json"
 
-    def _ensure_directories(self):
+    def _ensure_directories(self) -> None:
         """确保必要的目录存在"""
         directories = [
             self.config_file.parent,  # 配置目录
@@ -105,17 +107,21 @@ class AppSettings:
 
             if app_data_path:
                 base_dir = Path(app_data_path)
-                directories.extend([
-                    base_dir / "exports",  # 导出目录（持久数据）
-                    base_dir / "logs",     # 日志目录
-                ])
+                directories.extend(
+                    [
+                        base_dir / "exports",  # 导出目录（持久数据）
+                        base_dir / "logs",  # 日志目录
+                    ]
+                )
 
             if app_temp_path:
                 temp_dir = Path(app_temp_path)
                 directories.append(temp_dir / "cache")  # 缓存目录（临时文件）
             else:
                 # Fallback: 优先使用 XDG_CACHE_HOME，否则用配置目录
-                cache_home = os.getenv("XDG_CACHE_HOME") or os.path.join(Path.home(), ".cache")
+                cache_home = os.getenv("XDG_CACHE_HOME") or os.path.join(
+                    Path.home(), ".cache"
+                )
                 directories.append(Path(cache_home) / "triz-assistant")
 
         for directory in directories:
@@ -124,11 +130,11 @@ class AppSettings:
             except Exception as e:
                 logger.warning(f"无法创建目录 {directory}: {e}")
 
-    async def load(self):
+    async def load(self) -> None:
         """加载设置（不解密，密钥在打开设置对话框时解密）"""
         try:
             if self.config_file.exists():
-                with open(self.config_file, "r", encoding="utf-8") as f:
+                with open(self.config_file, encoding="utf-8") as f:
                     data = json.load(f)
                     self.config = AppConfig.from_dict(data)
 
@@ -142,7 +148,7 @@ class AppSettings:
             logger.error(f"加载设置失败: {e}")
             # 使用默认设置
 
-    async def _load_from_env(self):
+    async def _load_from_env(self) -> None:
         """从环境变量加载设置"""
         # AI配置 - 从环境变量加载到当前供应商配置
         current_provider = self.config.ai_provider
@@ -153,10 +159,14 @@ class AppSettings:
 
         if os.environ.get("DEEPSEEK_API_KEY"):
             self.config.ai_provider = "deepseek"
-            self.config.ai_providers_config["deepseek"].api_key = os.environ.get("DEEPSEEK_API_KEY")
+            self.config.ai_providers_config["deepseek"].api_key = os.environ.get(
+                "DEEPSEEK_API_KEY"
+            )
         elif os.environ.get("OPENROUTER_API_KEY"):
             self.config.ai_provider = "openrouter"
-            self.config.ai_providers_config["openrouter"].api_key = os.environ.get("OPENROUTER_API_KEY")
+            self.config.ai_providers_config["openrouter"].api_key = os.environ.get(
+                "OPENROUTER_API_KEY"
+            )
 
         # 应用配置
         language = os.environ.get("APP_LANGUAGE")
@@ -167,13 +177,13 @@ class AppSettings:
         if theme in ["light", "dark", "auto"]:
             self.config.theme = theme
 
-    async def save(self):
+    async def save(self) -> bool:
         """保存设置"""
         try:
             data = self.config.to_dict()
 
             # 加密所有供应商的API密钥
-            for provider, config in data.get("ai_providers_config", {}).items():
+            for _provider, config in data.get("ai_providers_config", {}).items():
                 if config.get("api_key"):
                     config["api_key"] = _simple_encrypt(config["api_key"])
 
@@ -187,9 +197,9 @@ class AppSettings:
             logger.error(f"保存设置失败: {e}")
             return False
 
-    def decrypt_all_provider_keys(self):
+    def decrypt_all_provider_keys(self) -> None:
         """解密所有供应商的API密钥（仅在打开设置对话框时调用一次）"""
-        for provider, provider_config in self.config.ai_providers_config.items():
+        for _provider, provider_config in self.config.ai_providers_config.items():
             if provider_config and provider_config.api_key:
                 decrypted = _simple_decrypt(provider_config.api_key)
                 if decrypted:
@@ -198,11 +208,11 @@ class AppSettings:
                     # 如果解密失败，保留原值（可能是明文）
                     pass
 
-    def get(self, key: str, default=None) -> Any:
+    def get(self, key: str, default: Any = None) -> Any:
         """获取设置值"""
         return getattr(self.config, key, default)
 
-    def set(self, key: str, value: Any):
+    def set(self, key: str, value: Any) -> None:
         """设置值"""
         if hasattr(self.config, key):
             setattr(self.config, key, value)
@@ -210,12 +220,12 @@ class AppSettings:
         else:
             logger.warning(f"尝试设置不存在的配置项: {key}")
 
-    def update(self, updates: Dict[str, Any]):
+    def update(self, updates: dict[str, Any]) -> None:
         """批量更新设置"""
         for key, value in updates.items():
             self.set(key, value)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典（用于日志等，显示时隐藏敏感信息）"""
         data = self.config.to_dict()
 
@@ -227,19 +237,19 @@ class AppSettings:
 
         return data
 
-    def reset_to_defaults(self):
+    def reset_to_defaults(self) -> None:
         """重置为默认设置"""
         self.config = AppConfig()
         logger.info("设置已重置为默认值")
 
     # 便捷属性访问
     @property
-    def ai_api_key(self) -> Optional[str]:
+    def ai_api_key(self) -> str | None:
         """获取当前供应商的AI API密钥"""
         return self.config.get_current_provider_config().api_key
 
     @ai_api_key.setter
-    def ai_api_key(self, value: str):
+    def ai_api_key(self, value: str) -> None:
         """设置当前供应商的AI API密钥"""
         provider = self.config.ai_provider
         if provider not in self.config.ai_providers_config:
@@ -252,7 +262,7 @@ class AppSettings:
         return self.config.ai_provider
 
     @ai_provider.setter
-    def ai_provider(self, value: str):
+    def ai_provider(self, value: str) -> None:
         """设置AI提供商"""
         if value in ["deepseek", "openrouter", "openai-format"]:
             self.config.ai_provider = value
@@ -263,7 +273,7 @@ class AppSettings:
         return self.config.get_current_provider_config().base_url
 
     @ai_base_url.setter
-    def ai_base_url(self, value: str):
+    def ai_base_url(self, value: str) -> None:
         """设置当前供应商的AI Base URL"""
         provider = self.config.ai_provider
         if provider not in self.config.ai_providers_config:
@@ -276,7 +286,7 @@ class AppSettings:
         return self.config.get_current_provider_config().model
 
     @ai_model.setter
-    def ai_model(self, value: str):
+    def ai_model(self, value: str) -> None:
         """设置当前供应商的AI模型"""
         provider = self.config.ai_provider
         if provider not in self.config.ai_providers_config:
@@ -289,7 +299,7 @@ class AppSettings:
         return self.config.language
 
     @language.setter
-    def language(self, value: str):
+    def language(self, value: str) -> None:
         """设置界面语言"""
         if value in ["zh", "en"]:
             self.config.language = value
@@ -300,7 +310,7 @@ class AppSettings:
         return self.config.theme
 
     @theme.setter
-    def theme(self, value: str):
+    def theme(self, value: str) -> None:
         """设置主题模式"""
         if value in ["light", "dark", "auto"]:
             self.config.theme = value
@@ -311,7 +321,7 @@ class AppSettings:
         return self.config.default_solution_count
 
     @default_solution_count.setter
-    def default_solution_count(self, value: int):
+    def default_solution_count(self, value: int) -> None:
         """设置默认解决方案数量"""
         if 0 <= value <= 20:
             self.config.default_solution_count = value
@@ -322,7 +332,7 @@ class AppSettings:
         return self.config.enable_history
 
     @enable_history.setter
-    def enable_history(self, value: bool):
+    def enable_history(self, value: bool) -> None:
         """设置历史记录启用状态"""
         self.config.enable_history = value
 
@@ -330,17 +340,17 @@ class AppSettings:
         """检查AI是否已配置"""
         return bool(self.ai_api_key)
 
-    def get_ai_config_summary(self) -> Dict[str, Any]:
+    def get_ai_config_summary(self) -> dict[str, Any]:
         """获取AI配置摘要"""
         return {
             "configured": self.is_ai_configured(),
             "provider": self.config.ai_provider,
-            "has_api_key": bool(self.ai_api_key)
+            "has_api_key": bool(self.ai_api_key),
         }
 
 
 # 全局设置实例
-_app_settings: Optional[AppSettings] = None
+_app_settings: AppSettings | None = None
 _settings_loaded: bool = False
 
 
@@ -352,7 +362,7 @@ def get_app_settings() -> AppSettings:
     return _app_settings
 
 
-async def initialize_settings():
+async def initialize_settings() -> AppSettings:
     """初始化设置"""
     settings = get_app_settings()
     await settings.load()

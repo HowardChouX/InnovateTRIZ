@@ -3,15 +3,13 @@
 提供解决方案列表和详情展示
 """
 
-import flet as ft
 import logging
-from typing import Optional, Callable, List, Dict, Sequence
+from collections.abc import Callable, Sequence
 
+import flet as ft
+
+from ..config.constants import COLORS, PRINCIPLE_CATEGORIES
 from ..data.models import Solution
-from ..config.constants import (
-    COLORS,
-    PRINCIPLE_CATEGORIES
-)
 
 logger = logging.getLogger(__name__)
 
@@ -34,24 +32,20 @@ def _hex_to_flet_color(hex_color: str, alpha: int = 255) -> str:
 class SolutionListView:
     """解决方案展示类"""
 
-    def __init__(
-        self,
-        page: ft.Page,
-        on_back: Optional[Callable] = None
-    ):
+    def __init__(self, page: ft.Page, on_back: Callable | None = None):
         self.page = page
         self.on_back = on_back
-        self.solutions: List[Solution] = []
-        self.categorized_solutions: Dict[str, List[Solution]] = {}
+        self.solutions: list[Solution] = []
+        self.categorized_solutions: dict[str, list[Solution]] = {}
 
     def show(
         self,
-        solutions: List[Solution],
+        solutions: list[Solution],
         problem: str,
-        improving_param: Optional[str] = None,
-        worsening_param: Optional[str] = None,
-        on_back: Optional[Callable] = None
-    ):
+        improving_param: str | None = None,
+        worsening_param: str | None = None,
+        on_back: Callable | None = None,
+    ) -> None:
         """
         显示解决方案列表
 
@@ -72,9 +66,11 @@ class SolutionListView:
         # 构建UI
         self._build_ui(problem, improving_param, worsening_param)
 
-    def _categorize_by_principle(self, solutions: List[Solution]) -> Dict[str, List[Solution]]:
+    def _categorize_by_principle(
+        self, solutions: list[Solution]
+    ) -> dict[str, list[Solution]]:
         """按原理分类解决方案"""
-        categorized = {}
+        categorized: dict[str, list[Solution]] = {}
 
         for category in PRINCIPLE_CATEGORIES.keys():
             categorized[category] = []
@@ -97,9 +93,9 @@ class SolutionListView:
     def _build_ui(
         self,
         problem: str,
-        improving_param: Optional[str],
-        worsening_param: Optional[str]
-    ):
+        improving_param: str | None,
+        worsening_param: str | None,
+    ) -> None:
         """构建UI"""
         self.page.clean()
 
@@ -107,22 +103,23 @@ class SolutionListView:
         top_bar = ft.Row(
             controls=[
                 ft.IconButton(
-                    icon=ft.icons.Icons.ARROW_BACK,
-                    on_click=self._on_back_click
+                    icon=ft.icons.Icons.ARROW_BACK, on_click=self._on_back_click
                 ),
                 ft.Text("分析结果", size=20, weight=ft.FontWeight.BOLD),
                 ft.Container(expand=True),
                 ft.IconButton(
                     icon=ft.icons.Icons.HOME,
                     on_click=self._on_home_click,
-                    tooltip="返回主页"
-                )
+                    tooltip="返回主页",
+                ),
             ],
-            alignment=ft.MainAxisAlignment.START
+            alignment=ft.MainAxisAlignment.START,
         )
 
         # 问题摘要卡片
-        problem_card = self._create_problem_card(problem, improving_param, worsening_param)
+        problem_card = self._create_problem_card(
+            problem, improving_param, worsening_param
+        )
 
         # 统计信息
         stats_row = self._create_stats_row()
@@ -132,7 +129,7 @@ class SolutionListView:
             controls=list(self._create_solution_cards()),
             expand=True,
             spacing=15,
-            padding=10
+            padding=10,
         )
 
         # 组装页面 - 合并为一次添加，减少UI刷新
@@ -142,19 +139,21 @@ class SolutionListView:
             problem_card,
             stats_row,
             ft.Divider(),
-            solutions_container
+            solutions_container,
         )
 
     def _create_problem_card(
         self,
         problem: str,
-        improving_param: Optional[str],
-        worsening_param: Optional[str]
+        improving_param: str | None,
+        worsening_param: str | None,
     ) -> ft.Card:
         """创建问题摘要卡片"""
         param_text = ""
         if improving_param or worsening_param:
-            param_text = f"改善: {improving_param or '自动'} → 恶化: {worsening_param or '自动'}"
+            param_text = (
+                f"改善: {improving_param or '自动'} → 恶化: {worsening_param or '自动'}"
+            )
 
         return ft.Card(
             content=ft.Container(
@@ -162,14 +161,16 @@ class SolutionListView:
                     controls=[
                         ft.Row(
                             controls=[
-                                ft.Icon(ft.icons.Icons.LIGHTBULB, color=COLORS["accent"]),
-                                ft.Text("问题摘要", size=16, weight=ft.FontWeight.BOLD)
+                                ft.Icon(
+                                    ft.icons.Icons.LIGHTBULB, color=COLORS["accent"]
+                                ),
+                                ft.Text("问题摘要", size=16, weight=ft.FontWeight.BOLD),
                             ],
-                            spacing=10
+                            spacing=10,
                         ),
                         ft.Container(
                             content=ft.Text(problem, size=14),
-                            padding=ft.padding.only(top=5, bottom=10)
+                            padding=ft.padding.only(top=5, bottom=10),
                         ),
                         ft.Divider(),
                         ft.Row(
@@ -180,16 +181,16 @@ class SolutionListView:
                                     f"生成 {len(self.solutions)} 个方案",
                                     size=12,
                                     color=COLORS["primary"],
-                                    weight=ft.FontWeight.BOLD
-                                )
+                                    weight=ft.FontWeight.BOLD,
+                                ),
                             ]
-                        )
+                        ),
                     ],
-                    spacing=5
+                    spacing=5,
                 ),
-                padding=15
+                padding=15,
             ),
-            elevation=3
+            elevation=3,
         )
 
     def _create_stats_row(self) -> ft.Container:
@@ -208,39 +209,52 @@ class SolutionListView:
 
         stat_cards: list[ft.Container] = [
             self._create_stat_item("总方案数", str(total), ft.icons.Icons.LIST),
-            self._create_stat_item("平均置信度", f"{avg_confidence:.1%}", ft.icons.Icons.ANALYTICS),
-            self._create_stat_item("分类数", str(len(categories)), ft.icons.Icons.CATEGORY),
+            self._create_stat_item(
+                "平均置信度", f"{avg_confidence:.1%}", ft.icons.Icons.ANALYTICS
+            ),
+            self._create_stat_item(
+                "分类数", str(len(categories)), ft.icons.Icons.CATEGORY
+            ),
         ]
 
         if ai_count > 0:
             stat_cards.append(
-                self._create_stat_item("AI生成", str(ai_count), ft.icons.Icons.AUTO_AWESOME)
+                self._create_stat_item(
+                    "AI生成", str(ai_count), ft.icons.Icons.AUTO_AWESOME
+                )
             )
 
         return ft.Container(
             content=ft.Row(
                 controls=list(stat_cards),
                 alignment=ft.MainAxisAlignment.SPACE_EVENLY,
-                spacing=10
+                spacing=10,
             ),
-            padding=10
+            padding=10,
         )
 
-    def _create_stat_item(self, label: str, value: str, icon: ft.IconData) -> ft.Container:
+    def _create_stat_item(
+        self, label: str, value: str, icon: ft.IconData
+    ) -> ft.Container:
         """创建统计项"""
         return ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Icon(icon, color=COLORS["primary"], size=20),
-                    ft.Text(value, size=18, weight=ft.FontWeight.BOLD, color=COLORS["text_primary"]),
-                    ft.Text(label, size=10, color=ft.Colors.GREY)
+                    ft.Text(
+                        value,
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=COLORS["text_primary"],
+                    ),
+                    ft.Text(label, size=10, color=ft.Colors.GREY),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=2
+                spacing=2,
             ),
             padding=10,
             border_radius=10,
-            bgcolor=COLORS["surface"]
+            bgcolor=COLORS["surface"],
         )
 
     def _create_solution_cards(self) -> Sequence[ft.Container]:
@@ -255,24 +269,24 @@ class SolutionListView:
             category_header = ft.Container(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(self._get_category_icon(category), color=COLORS["primary"]),
+                        ft.Icon(
+                            self._get_category_icon(category), color=COLORS["primary"]
+                        ),
                         ft.Text(
                             f"{category}类原理",
                             size=16,
                             weight=ft.FontWeight.BOLD,
-                            color=COLORS["primary"]
+                            color=COLORS["primary"],
                         ),
                         ft.Container(
                             content=ft.Text(
-                                f"({len(solutions)}个)",
-                                size=12,
-                                color=ft.Colors.GREY
+                                f"({len(solutions)}个)", size=12, color=ft.Colors.GREY
                             )
-                        )
+                        ),
                     ],
-                    spacing=10
+                    spacing=10,
                 ),
-                padding=ft.padding.only(top=10, bottom=5)
+                padding=ft.padding.only(top=10, bottom=5),
             )
             cards.append(category_header)
 
@@ -291,7 +305,7 @@ class SolutionListView:
             "几何": ft.icons.Icons.STRAIGHTEN,
             "时间": ft.icons.Icons.SCHEDULE,
             "系统": ft.icons.Icons.SETTINGS_SYSTEM_DAYDREAM,
-            "其他": ft.icons.Icons.MORE_HORIZ
+            "其他": ft.icons.Icons.MORE_HORIZ,
         }
         return icons.get(category, ft.icons.Icons.LIGHTBULB)
 
@@ -315,7 +329,9 @@ class SolutionListView:
         # 示例列表
         examples_text = ""
         if solution.examples:
-            examples_text = "应用示例:\n" + "\n".join(f"• {ex}" for ex in solution.examples[:3])
+            examples_text = "应用示例:\n" + "\n".join(
+                f"• {ex}" for ex in solution.examples[:3]
+            )
 
         card = ft.Card(
             content=ft.Container(
@@ -329,99 +345,103 @@ class SolutionListView:
                                         f"#{solution.principle_id}",
                                         size=16,
                                         weight=ft.FontWeight.BOLD,
-                                        color=ft.Colors.WHITE
+                                        color=ft.Colors.WHITE,
                                     ),
                                     padding=8,
                                     border_radius=8,
-                                    bgcolor=COLORS["primary"]
+                                    bgcolor=COLORS["primary"],
                                 ),
                                 ft.Container(
                                     content=ft.Text(
                                         solution.principle_name,
                                         size=14,
-                                        weight=ft.FontWeight.BOLD
+                                        weight=ft.FontWeight.BOLD,
                                     ),
-                                    expand=True
+                                    expand=True,
                                 ),
                                 ft.Container(
                                     content=ft.Row(
                                         controls=[
-                                            ft.Icon(ft.icons.Icons.VERIFIED, color=conf_color, size=16),
-                                            ft.Text(conf_text, size=12, color=conf_color)
+                                            ft.Icon(
+                                                ft.icons.Icons.VERIFIED,
+                                                color=conf_color,
+                                                size=16,
+                                            ),
+                                            ft.Text(
+                                                conf_text, size=12, color=conf_color
+                                            ),
                                         ],
-                                        spacing=2
+                                        spacing=2,
                                     ),
                                     padding=5,
                                     border_radius=5,
-                                    bgcolor=_hex_to_flet_color(conf_color, 32)
-                                )
+                                    bgcolor=_hex_to_flet_color(conf_color, 32),
+                                ),
                             ],
                             spacing=10,
-                            alignment=ft.MainAxisAlignment.START
+                            alignment=ft.MainAxisAlignment.START,
                         ),
-
                         ft.Divider(),
-
                         # 方案描述
                         ft.Container(
                             content=ft.Text(
-                                solution.description,
-                                size=13,
-                                color=ft.Colors.GREY_800
+                                solution.description, size=13, color=ft.Colors.GREY_800
                             ),
-                            padding=ft.padding.only(bottom=10)
+                            padding=ft.padding.only(bottom=10),
                         ),
-
                         # AI标签
                         ft.Row(
                             controls=[
                                 ft.Container(
                                     content=ft.Text(
-                                        "🤖 AI生成" if solution.is_ai_generated else "📦 本地生成",
+                                        (
+                                            "🤖 AI生成"
+                                            if solution.is_ai_generated
+                                            else "📦 本地生成"
+                                        ),
                                         size=10,
-                                        color=ft.Colors.GREY
+                                        color=ft.Colors.GREY,
                                     ),
-                                    padding=3
+                                    padding=3,
                                 ),
                                 ft.Container(
                                     content=ft.Text(
                                         solution.category,
                                         size=10,
-                                        color=COLORS["primary"]
+                                        color=COLORS["primary"],
                                     ),
-                                    padding=3
-                                )
+                                    padding=3,
+                                ),
                             ],
-                            spacing=5
+                            spacing=5,
                         ),
-
                         # 应用示例（如果有）
                         ft.Container(
                             content=ft.Text(
                                 examples_text,
                                 size=11,
                                 color=ft.Colors.GREY_600,
-                                italic=True
+                                italic=True,
                             ),
                             padding=ft.padding.only(top=10),
-                            visible=bool(examples_text)
-                        )
+                            visible=bool(examples_text),
+                        ),
                     ],
-                    spacing=5
+                    spacing=5,
                 ),
-                padding=15
+                padding=15,
             ),
-            elevation=2
+            elevation=2,
         )
 
         return card
 
-    def _on_back_click(self, e=None):
+    def _on_back_click(self, e: ft.ControlEvent | None = None) -> None:
         """返回按钮点击"""
         if self.on_back:
             self.on_back(e)
 
-    def _on_home_click(self, e=None):
+    def _on_home_click(self, e: ft.ControlEvent | None = None) -> None:
         """主页按钮点击"""
         if self.on_back:
             self.on_back(e)

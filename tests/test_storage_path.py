@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 存储路径兼容性测试
 
 验证 Android 环境下 FLET_APP_STORAGE_DATA 环境变量的正确使用
 """
 
-import sys
 import os
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch

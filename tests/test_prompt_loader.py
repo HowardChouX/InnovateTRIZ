@@ -2,8 +2,7 @@
 TRIZ提示词模块测试
 """
 
-import pytest
-from src.ai.prompts import PromptLoader, PromptBuilder
+from src.ai.prompts import PromptBuilder, PromptLoader
 
 
 class TestPromptLoader:
@@ -113,7 +112,7 @@ class TestPromptBuilder:
             improving_param="能量消耗",
             worsening_param="重量",
             principles=[1, 2, 35],
-            solution_count=3
+            solution_count=3,
         )
         assert len(prompt) > 700  # 提示词应该足够长
         assert "手机需要更大电池" in prompt
@@ -128,9 +127,7 @@ class TestPromptBuilder:
         """测试无原理时的提示词"""
         builder = PromptBuilder()
         prompt = builder.build_solution_prompt(
-            problem="测试问题",
-            principles=[],
-            solution_count=3
+            problem="测试问题", principles=[], solution_count=3
         )
         assert "测试问题" in prompt
         assert "未指定" in prompt
@@ -142,7 +139,7 @@ class TestPromptBuilder:
             problem="汽车发动机需要更强动力",
             improving_param="速度",
             worsening_param="油耗",
-            principles=[1, 2]
+            principles=[1, 2],
         )
         assert "汽车发动机需要更强动力" in prompt
         assert "TRIZ expert" in prompt
@@ -215,5 +212,7 @@ class TestPromptBuilder:
         prompt = builder.build_standard_solutions_prompt("减少磨损")
         assert "Standard Solutions" in prompt or "标准解" in prompt
 
-        prompt_with_class = builder.build_standard_solutions_prompt("减少磨损", solution_class=2)
+        prompt_with_class = builder.build_standard_solutions_prompt(
+            "减少磨损", solution_class=2
+        )
         assert "Class 2" in prompt_with_class

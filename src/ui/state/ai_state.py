@@ -3,7 +3,8 @@ AI状态管理器（订阅-发布模式）
 替代手动设置 matrix_tab._settings_tab 的方式
 """
 
-from typing import Callable, List, Optional
+from collections.abc import Callable
+from typing import Optional
 
 
 class AIStateManager:
@@ -11,10 +12,10 @@ class AIStateManager:
 
     _instance: Optional["AIStateManager"] = None
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._is_enabled: bool = False
         self._is_connected: bool = False
-        self._subscribers: List[Callable[[bool, bool], None]] = []
+        self._subscribers: list[Callable[[bool, bool], None]] = []
 
     @classmethod
     def get_instance(cls) -> "AIStateManager":

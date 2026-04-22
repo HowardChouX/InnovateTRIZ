@@ -4,32 +4,37 @@
 """
 
 import logging
-from typing import List, Dict, Optional, Any
+from typing import Any
+
+from ..config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
 from ..data.models import InventivePrinciple
 from ..data.triz_constants import get_triz_data_loader
-from ..config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
 
 logger = logging.getLogger(__name__)
 
 
 # 40发明原理完整信息（包含8种信息）
 # 这些数据需要根据实际需求填充完整
-PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
+PRINCIPLE_DETAILS: dict[int, dict[str, Any]] = {
     1: {
         "name": "分割",
         "definition": "将物体分成独立的部分，或将复杂问题分解为简单问题",
         "category": "物理",
         "tags": ["分割", "模块化", "拆解"],
         "examples": ["模块化产品设计", "可拆卸家具", "组合家具", "USB模块设计"],
-        "use_cases": ["IKEA家具的模块化设计", "手机模块化设计（电池、屏幕可更换）", "电脑硬件的模块化组装"],
+        "use_cases": [
+            "IKEA家具的模块化设计",
+            "手机模块化设计（电池、屏幕可更换）",
+            "电脑硬件的模块化组装",
+        ],
         "explanation": "将物体分解为独立的部分是解决复杂问题的有效方法。这种方法可以提高系统的可维护性、可升级性和灵活性。当一个问题涉及多个功能时，将其分解为独立的模块可以更容易地分析和解决。",
         "implementation_steps": [
             "1. 识别系统中的独立功能单元",
             "2. 定义模块间的标准接口",
             "3. 将系统分解为可独立工作的模块",
-            "4. 确保模块可以单独测试和维护"
+            "4. 确保模块可以单独测试和维护",
         ],
-        "benefits": "提高可维护性、降低开发复杂度、增强系统灵活性、便于产品升级"
+        "benefits": "提高可维护性、降低开发复杂度、增强系统灵活性、便于产品升级",
     },
     2: {
         "name": "抽取",
@@ -37,15 +42,19 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
         "category": "物理",
         "tags": ["抽取", "提取", "分离"],
         "examples": ["提取噪音源", "分离关键部件", "提取特征"],
-        "use_cases": ["降噪耳机的主动降噪功能", "汽车发动机的减震系统", "图像处理中的特征提取"],
+        "use_cases": [
+            "降噪耳机的主动降噪功能",
+            "汽车发动机的减震系统",
+            "图像处理中的特征提取",
+        ],
         "explanation": "通过抽取或分离系统中的特定部分，可以消除有害因素或增强有用功能。这种方法常用于解决物理矛盾，如需要某一部分的特性但不希望其他部分的特性。",
         "implementation_steps": [
             "1. 识别系统中的有害或有益部分",
             "2. 评估抽取该部分的可行性",
             "3. 设计抽取机制或接口",
-            "4. 实现抽取功能并验证效果"
+            "4. 实现抽取功能并验证效果",
         ],
-        "benefits": "消除有害因素、增强系统功能、提高产品 purity"
+        "benefits": "消除有害因素、增强系统功能、提高产品 purity",
     },
     3: {
         "name": "局部质量",
@@ -53,15 +62,19 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
         "category": "物理",
         "tags": ["局部质量", "差异化", "定制化"],
         "examples": ["不同部位使用不同材料", "手机不同部位使用不同材质", "复合材料"],
-        "use_cases": ["手机边框使用金属、背面使用玻璃", "飞机机翼的蜂窝结构", "鞋子的分区缓冲设计"],
+        "use_cases": [
+            "手机边框使用金属、背面使用玻璃",
+            "飞机机翼的蜂窝结构",
+            "鞋子的分区缓冲设计",
+        ],
         "explanation": "系统的不同部分应具有不同的特性以优化整体性能。通过局部质量原理，可以为每个部分分配最适合其功能的属性，而不是使用统一的属性。",
         "implementation_steps": [
             "1. 分析系统各部分的功能需求",
             "2. 识别各部分的关键性能指标",
             "3. 为不同部分选择或设计不同的材料/结构",
-            "4. 优化各部分之间的连接和过渡"
+            "4. 优化各部分之间的连接和过渡",
         ],
-        "benefits": "优化整体性能、减少材料使用、提高功能效率"
+        "benefits": "优化整体性能、减少材料使用、提高功能效率",
     },
     4: {
         "name": "非对称",
@@ -75,9 +88,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 分析系统的功能需求",
             "2. 评估对称性是否限制了性能",
             "3. 设计非对称形状以优化功能",
-            "4. 测试和验证非对称设计的有效性"
+            "4. 测试和验证非对称设计的有效性",
         ],
-        "benefits": "适应特殊需求、提高稳定性、增强功能性"
+        "benefits": "适应特殊需求、提高稳定性、增强功能性",
     },
     5: {
         "name": "合并",
@@ -85,15 +98,19 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
         "category": "物理",
         "tags": ["合并", "集成", "组合"],
         "examples": ["多功能工具", "集成芯片", "组合家具"],
-        "use_cases": ["瑞士军刀的多功能设计", "智能手机集成多种设备功能", "多功能打印机"],
+        "use_cases": [
+            "瑞士军刀的多功能设计",
+            "智能手机集成多种设备功能",
+            "多功能打印机",
+        ],
         "explanation": "通过合并物体或操作，可以减少组件数量、简化系统、提高效率。合并可以是空间的（将多个物体放在一起）或功能的（将多个功能集成到一个物体）。",
         "implementation_steps": [
             "1. 识别可以合并的相似组件或功能",
             "2. 评估合并的技术可行性和成本",
             "3. 设计合并方案",
-            "4. 实现合并并验证功能完整性"
+            "4. 实现合并并验证功能完整性",
         ],
-        "benefits": "减少组件数量、简化系统、降低成、本节约空间"
+        "benefits": "减少组件数量、简化系统、降低成、本节约空间",
     },
     6: {
         "name": "多用性",
@@ -107,9 +124,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别物体需要执行的主要功能",
             "2. 设计能够执行多种功能的结构",
             "3. 确保各功能之间不冲突",
-            "4. 测试所有功能的有效性"
+            "4. 测试所有功能的有效性",
         ],
-        "benefits": "减少资源消耗、简化系统、提高产品价值"
+        "benefits": "减少资源消耗、简化系统、提高产品价值",
     },
     7: {
         "name": "套装",
@@ -123,9 +140,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要嵌套的组件",
             "2. 设计嵌套结构和接口",
             "3. 确保嵌套和展开的顺畅性",
-            "4. 测试嵌套结构的耐久性"
+            "4. 测试嵌套结构的耐久性",
         ],
-        "benefits": "节省空间、增加功能、便于携带"
+        "benefits": "节省空间、增加功能、便于携带",
     },
     8: {
         "name": "重量补偿",
@@ -139,9 +156,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 分析系统的平衡需求",
             "2. 确定需要补偿的重量或力",
             "3. 设计补偿方案（配重、气压等）",
-            "4. 实施并验证平衡效果"
+            "4. 实施并验证平衡效果",
         ],
-        "benefits": "提高稳定性、改善动态性能、实现特定功能"
+        "benefits": "提高稳定性、改善动态性能、实现特定功能",
     },
     9: {
         "name": "增加反作用",
@@ -155,9 +172,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可能发生过度的有用作用",
             "2. 评估需要预先施加的反作用力",
             "3. 设计反作用力施加机制",
-            "4. 实现并验证预防效果"
+            "4. 实现并验证预防效果",
         ],
-        "benefits": "预防过度变形、提高安全性、延长使用寿命"
+        "benefits": "预防过度变形、提高安全性、延长使用寿命",
     },
     10: {
         "name": "预操作",
@@ -171,9 +188,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以预先完成的操作",
             "2. 评估预操作的可行性和成本",
             "3. 设计预操作机制",
-            "4. 实施预操作并同步主操作"
+            "4. 实施预操作并同步主操作",
         ],
-        "benefits": "减少操作时间、优化资源利用、提高效率"
+        "benefits": "减少操作时间、优化资源利用、提高效率",
     },
     11: {
         "name": "预先应急措施",
@@ -187,9 +204,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可能发生的危险或故障",
             "2. 设计应急响应机制",
             "3. 确保应急措施能够快速激活",
-            "4. 定期测试应急系统的有效性"
+            "4. 定期测试应急系统的有效性",
         ],
-        "benefits": "提高安全性、减少损失、保证连续性"
+        "benefits": "提高安全性、减少损失、保证连续性",
     },
     12: {
         "name": "等势性",
@@ -203,9 +220,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 分析需要改变高度的作业",
             "2. 设计水平移动或连续移动方案",
             "3. 消除或减少高度变化",
-            "4. 测试系统的效率和可靠性"
+            "4. 测试系统的效率和可靠性",
         ],
-        "benefits": "节约能源、减少设备磨损、提高效率"
+        "benefits": "节约能源、减少设备磨损、提高效率",
     },
     13: {
         "name": "逆向思维",
@@ -219,9 +236,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别问题中的有害或有利因素",
             "2. 颠倒或反转这些因素",
             "3. 评估转化后的效果",
-            "4. 实施并优化新方案"
+            "4. 实施并优化新方案",
         ],
-        "benefits": "化害为利、创造新价值、开拓新思路"
+        "benefits": "化害为利、创造新价值、开拓新思路",
     },
     14: {
         "name": "曲面化",
@@ -235,9 +252,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以使用曲面化的平面或直线",
             "2. 评估曲面化的优势（如强度、流动性）",
             "3. 设计曲面形状和曲率",
-            "4. 测试曲面结构的性能"
+            "4. 测试曲面结构的性能",
         ],
-        "benefits": "增强强度、改善流动性、提高美学价值"
+        "benefits": "增强强度、改善流动性、提高美学价值",
     },
     15: {
         "name": "动态化",
@@ -251,9 +268,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要适应变化的条件",
             "2. 设计可调节或自适应机制",
             "3. 实现动态调节功能",
-            "4. 测试系统对不同条件的适应性"
+            "4. 测试系统对不同条件的适应性",
         ],
-        "benefits": "提高适应性、增强功能性、改善用户体验"
+        "benefits": "提高适应性、增强功能性、改善用户体验",
     },
     16: {
         "name": "不足或超额行动",
@@ -267,9 +284,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以使用超额或不足行动的机会",
             "2. 设计超额/不足+补偿的方案",
             "3. 实施并控制过程",
-            "4. 验证最终结果的正确性"
+            "4. 验证最终结果的正确性",
         ],
-        "benefits": "简化操作、开拓新工艺、提高产品质量"
+        "benefits": "简化操作、开拓新工艺、提高产品质量",
     },
     17: {
         "name": "维数变化",
@@ -283,9 +300,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 分析当前维度的局限性",
             "2. 设计增加或改变维度的方案",
             "3. 实现新维度的结构",
-            "4. 测试新结构的功能和效率"
+            "4. 测试新结构的功能和效率",
         ],
-        "benefits": "更有效利用空间、实现新功能、提高集成度"
+        "benefits": "更有效利用空间、实现新功能、提高集成度",
     },
     18: {
         "name": "振动",
@@ -299,9 +316,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别振动可以解决的问题",
             "2. 确定合适的振动参数（频率、振幅）",
             "3. 设计振动发生和传输机制",
-            "4. 测试振动效果并优化参数"
+            "4. 测试振动效果并优化参数",
         ],
-        "benefits": "实现新功能、提高处理效率、改善混合均匀性"
+        "benefits": "实现新功能、提高处理效率、改善混合均匀性",
     },
     19: {
         "name": "周期性动作",
@@ -315,9 +332,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以改为周期性的连续动作",
             "2. 确定合适的周期和占空比",
             "3. 设计周期控制机制",
-            "4. 测试周期性动作的效果"
+            "4. 测试周期性动作的效果",
         ],
-        "benefits": "节约能源、减少磨损、改善控制精度"
+        "benefits": "节约能源、减少磨损、改善控制精度",
     },
     20: {
         "name": "有效运动的连续性",
@@ -331,9 +348,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别运动中的空闲和间歇",
             "2. 设计消除空闲的方案",
             "3. 优化运动轨迹和时序",
-            "4. 测试连续运动的效果"
+            "4. 测试连续运动的效果",
         ],
-        "benefits": "显著提高效率、节约能源、提高产出"
+        "benefits": "显著提高效率、节约能源、提高产出",
     },
     21: {
         "name": "紧急行动",
@@ -347,9 +364,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要紧急行动的场景",
             "2. 设计快速响应机制",
             "3. 确保紧急行动的可靠性",
-            "4. 测试紧急系统的响应速度"
+            "4. 测试紧急系统的响应速度",
         ],
-        "benefits": "减少损害、抓住机会、提高安全性"
+        "benefits": "减少损害、抓住机会、提高安全性",
     },
     22: {
         "name": "变害为利",
@@ -363,9 +380,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别系统中的有害因素",
             "2. 探索利用有害因素的可能性",
             "3. 设计和实施转化方案",
-            "4. 验证变害为利的效果"
+            "4. 验证变害为利的效果",
         ],
-        "benefits": "减少污染、创造价值、实现可持续发展"
+        "benefits": "减少污染、创造价值、实现可持续发展",
     },
     23: {
         "name": "反馈",
@@ -379,9 +396,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要控制的参数",
             "2. 设计反馈信号和传感器",
             "3. 实现反馈控制算法",
-            "4. 调试和优化反馈参数"
+            "4. 调试和优化反馈参数",
         ],
-        "benefits": "实现自动化、提高精度、增强稳定性"
+        "benefits": "实现自动化、提高精度、增强稳定性",
     },
     24: {
         "name": "中介物",
@@ -395,9 +412,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要中介的功能",
             "2. 选择或设计合适的中介物",
             "3. 实现中介物与主系统的连接",
-            "4. 测试中介功能的效果"
+            "4. 测试中介功能的效果",
         ],
-        "benefits": "实现间接功能、扩展应用范围、提高灵活性"
+        "benefits": "实现间接功能、扩展应用范围、提高灵活性",
     },
     25: {
         "name": "自服务",
@@ -411,9 +428,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要自我服务的功能",
             "2. 设计自我服务机制",
             "3. 实现自我服务功能",
-            "4. 测试自我服务的效果和限制"
+            "4. 测试自我服务的效果和限制",
         ],
-        "benefits": "减少维护需求、延长寿命、提高可靠性"
+        "benefits": "减少维护需求、延长寿命、提高可靠性",
     },
     26: {
         "name": "复制",
@@ -427,9 +444,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以使用复制品的场景",
             "2. 选择复制的方法（物理/数字/概念）",
             "3. 创建复制品或模型",
-            "4. 在复制品上测试和验证"
+            "4. 在复制品上测试和验证",
         ],
-        "benefits": "降低成本、降低风险、提高灵活性"
+        "benefits": "降低成本、降低风险、提高灵活性",
     },
     27: {
         "name": "廉价替代品",
@@ -443,9 +460,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 分析现有方案的成本构成",
             "2. 识别可以用廉价材料替代的部分",
             "3. 评估替代材料的性能",
-            "4. 实施替代方案并验证效果"
+            "4. 实施替代方案并验证效果",
         ],
-        "benefits": "大幅降低成本、提高市场竞争力、扩大应用范围"
+        "benefits": "大幅降低成本、提高市场竞争力、扩大应用范围",
     },
     28: {
         "name": "机械系统的替代",
@@ -459,9 +476,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以用非机械方法替代的机械功能",
             "2. 评估各种非机械方法的适用性",
             "3. 设计和实现非机械方案",
-            "4. 测试并比较性能"
+            "4. 测试并比较性能",
         ],
-        "benefits": "提高效率、简化结构、增加精度"
+        "benefits": "提高效率、简化结构、增加精度",
     },
     29: {
         "name": "气压和液压结构",
@@ -475,9 +492,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以使用气压/液压的结构",
             "2. 设计气压或液压系统",
             "3. 实现气体/液体密封和传输",
-            "4. 测试气压/液压结构的性能"
+            "4. 测试气压/液压结构的性能",
         ],
-        "benefits": "轻量化、柔性结构、可调节性"
+        "benefits": "轻量化、柔性结构、可调节性",
     },
     30: {
         "name": "柔性壳体或薄膜",
@@ -491,9 +508,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以使用柔性材料的位置",
             "2. 选择合适的柔性材料",
             "3. 设计柔性结构",
-            "4. 测试柔性壳体的耐久性"
+            "4. 测试柔性壳体的耐久性",
         ],
-        "benefits": "轻量化、适应性强、成本低"
+        "benefits": "轻量化、适应性强、成本低",
     },
     31: {
         "name": "多孔材料",
@@ -507,9 +524,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以使用多孔材料的应用",
             "2. 选择或设计多孔材料结构",
             "3. 实现多孔材料",
-            "4. 测试多孔材料的性能"
+            "4. 测试多孔材料的性能",
         ],
-        "benefits": "大幅减重、独特功能、节约材料"
+        "benefits": "大幅减重、独特功能、节约材料",
     },
     32: {
         "name": "改变颜色",
@@ -523,9 +540,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以利用颜色的功能",
             "2. 选择合适的颜色或变色机制",
             "3. 实现颜色变化",
-            "4. 测试颜色的功能和耐久性"
+            "4. 测试颜色的功能和耐久性",
         ],
-        "benefits": "信息传递、审美提升、功能增强"
+        "benefits": "信息传递、审美提升、功能增强",
     },
     33: {
         "name": "同质性",
@@ -539,9 +556,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以使用同质材料的组件",
             "2. 评估同质材料的优势和限制",
             "3. 重新设计使用同质材料",
-            "4. 测试同质产品的性能"
+            "4. 测试同质产品的性能",
         ],
-        "benefits": "简化制造、提高兼容性、增强美学"
+        "benefits": "简化制造、提高兼容性、增强美学",
     },
     34: {
         "name": "抛弃与修复",
@@ -555,9 +572,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别系统中容易磨损或过时的部分",
             "2. 设计可抛弃或可修复的结构",
             "3. 实现模块化或修复机制",
-            "4. 测试抛弃/修复功能的效果"
+            "4. 测试抛弃/修复功能的效果",
         ],
-        "benefits": "延长使用寿命、减少浪费、降低成本"
+        "benefits": "延长使用寿命、减少浪费、降低成本",
     },
     35: {
         "name": "参数变化",
@@ -571,9 +588,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以改变的物理/化学参数",
             "2. 选择对参数敏感的材料",
             "3. 设计和实现参数控制系统",
-            "4. 测试参数变化的效果"
+            "4. 测试参数变化的效果",
         ],
-        "benefits": "增加功能、提高适应性、实现智能响应"
+        "benefits": "增加功能、提高适应性、实现智能响应",
     },
     36: {
         "name": "相变",
@@ -587,9 +604,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以利用相变的应用",
             "2. 选择合适的相变材料",
             "3. 设计和实现相变系统",
-            "4. 测试相变效率和稳定性"
+            "4. 测试相变效率和稳定性",
         ],
-        "benefits": "高效储能、温度稳定、能量调节"
+        "benefits": "高效储能、温度稳定、能量调节",
     },
     37: {
         "name": "热膨胀",
@@ -603,9 +620,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别可以利用热膨胀的场景",
             "2. 选择热膨胀系数合适的材料",
             "3. 设计热膨胀利用方案",
-            "4. 测试热膨胀效果"
+            "4. 测试热膨胀效果",
         ],
-        "benefits": "简化连接、实现自动控制、减少组件"
+        "benefits": "简化连接、实现自动控制、减少组件",
     },
     38: {
         "name": "加速强氧化",
@@ -619,9 +636,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要加速的氧化反应",
             "2. 选择合适的氧化方法",
             "3. 设计和实现氧化系统",
-            "4. 测试氧化效果和控制"
+            "4. 测试氧化效果和控制",
         ],
-        "benefits": "加速反应、提高效率、改善燃烧"
+        "benefits": "加速反应、提高效率、改善燃烧",
     },
     39: {
         "name": "惰性环境",
@@ -635,9 +652,9 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要防止的有害反应",
             "2. 选择合适的惰性介质",
             "3. 设计和实现惰性环境系统",
-            "4. 测试惰性保护效果"
+            "4. 测试惰性保护效果",
         ],
-        "benefits": "防止氧化、延长保存、保护材料"
+        "benefits": "防止氧化、延长保存、保护材料",
     },
     40: {
         "name": "复合材料",
@@ -651,21 +668,21 @@ PRINCIPLE_DETAILS: Dict[int, Dict[str, Any]] = {
             "1. 识别需要组合的材料特性",
             "2. 选择合适的增强体和基体材料",
             "3. 设计复合材料结构",
-            "4. 制造和测试复合材料性能"
+            "4. 制造和测试复合材料性能",
         ],
-        "benefits": "优异机械性能、轻量化、定制化特性"
-    }
+        "benefits": "优异机械性能、轻量化、定制化特性",
+    },
 }
 
 
 class PrincipleService:
     """40发明原理服务类"""
 
-    def __init__(self):
-        self._principles: Dict[int, InventivePrinciple] = {}
+    def __init__(self) -> None:
+        self._principles: dict[int, InventivePrinciple] = {}
         self._load_principles()
 
-    def _load_principles(self):
+    def _load_principles(self) -> None:
         """加载40个发明原理"""
         # 使用TRIZ数据加载器获取原理名称
         triz_loader = get_triz_data_loader()
@@ -675,7 +692,10 @@ class PrincipleService:
         # 使用详细信息填充原理
         for principle_id in range(1, 41):
             # 获取TRIZ数据中的名称（如果有）
-            name = triz_name_map.get(principle_id, INVENTIVE_PRINCIPLES.get(principle_id, f"原理{principle_id}"))
+            name = triz_name_map.get(
+                principle_id,
+                INVENTIVE_PRINCIPLES.get(principle_id, f"原理{principle_id}"),
+            )
 
             # 获取详细信息（如果没有则使用默认信息）
             details = PRINCIPLE_DETAILS.get(principle_id, {})
@@ -691,13 +711,13 @@ class PrincipleService:
                 use_cases=details.get("use_cases", []),
                 explanation=details.get("explanation", ""),
                 implementation_steps=details.get("implementation_steps", []),
-                benefits=details.get("benefits", "")
+                benefits=details.get("benefits", ""),
             )
             self._principles[principle_id] = principle
 
         logger.info(f"加载了{len(self._principles)}个发明原理")
 
-    def get_principle(self, principle_id: int) -> Optional[InventivePrinciple]:
+    def get_principle(self, principle_id: int) -> InventivePrinciple | None:
         """
         获取指定编号的发明原理
 
@@ -709,7 +729,7 @@ class PrincipleService:
         """
         return self._principles.get(principle_id)
 
-    def get_all_principles(self) -> List[InventivePrinciple]:
+    def get_all_principles(self) -> list[InventivePrinciple]:
         """
         获取所有40个发明原理
 
@@ -718,7 +738,9 @@ class PrincipleService:
         """
         return list(self._principles.values())
 
-    def get_principles_by_ids(self, principle_ids: List[int]) -> List[InventivePrinciple]:
+    def get_principles_by_ids(
+        self, principle_ids: list[int]
+    ) -> list[InventivePrinciple]:
         """
         根据编号列表获取发明原理
 
@@ -728,9 +750,11 @@ class PrincipleService:
         Returns:
             发明原理列表
         """
-        return [self._principles[pid] for pid in principle_ids if pid in self._principles]
+        return [
+            self._principles[pid] for pid in principle_ids if pid in self._principles
+        ]
 
-    def get_principles_by_category(self, category: str) -> List[InventivePrinciple]:
+    def get_principles_by_category(self, category: str) -> list[InventivePrinciple]:
         """
         根据分类获取发明原理
 
@@ -742,7 +766,7 @@ class PrincipleService:
         """
         return [p for p in self._principles.values() if p.category == category]
 
-    def search_principles(self, query: str) -> List[InventivePrinciple]:
+    def search_principles(self, query: str) -> list[InventivePrinciple]:
         """
         搜索发明原理
 
@@ -757,14 +781,16 @@ class PrincipleService:
 
         for principle in self._principles.values():
             # 搜索名称、定义、示例等
-            if (query_lower in principle.name.lower() or
-                query_lower in principle.definition.lower() or
-                any(query_lower in ex.lower() for ex in principle.examples)):
+            if (
+                query_lower in principle.name.lower()
+                or query_lower in principle.definition.lower()
+                or any(query_lower in ex.lower() for ex in principle.examples)
+            ):
                 results.append(principle)
 
         return results
 
-    def get_categories(self) -> List[str]:
+    def get_categories(self) -> list[str]:
         """
         获取所有分类
 
@@ -773,7 +799,7 @@ class PrincipleService:
         """
         return list(PRINCIPLE_CATEGORIES.keys())
 
-    def get_principle_summary(self, principle_id: int) -> Dict[str, Any]:
+    def get_principle_summary(self, principle_id: int) -> dict[str, Any]:
         """
         获取原理摘要信息
 
@@ -792,12 +818,12 @@ class PrincipleService:
             "name": principle.name,
             "definition": principle.definition,
             "category": principle.category,
-            "examples": principle.examples[:3]  # 只返回前3个示例
+            "examples": principle.examples[:3],  # 只返回前3个示例
         }
 
 
 # 全局单例
-_principle_service: Optional[PrincipleService] = None
+_principle_service: PrincipleService | None = None
 
 
 def get_principle_service() -> PrincipleService:

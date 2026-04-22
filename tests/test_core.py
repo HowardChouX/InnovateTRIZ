@@ -3,9 +3,9 @@
 
 测试 LocalTRIZEngine、ContradictionMatrix 等核心逻辑
 """
-import pytest
-from src.core.triz_engine import LocalTRIZEngine
+
 from src.core.matrix_selector import get_matrix_manager
+from src.core.triz_engine import LocalTRIZEngine
 
 
 class TestLocalTRIZEngine:
@@ -27,34 +27,26 @@ class TestLocalTRIZEngine:
     def test_generate_solutions_basic(self):
         """测试基本解决方案生成"""
         solutions = self.engine.generate_solutions(
-            principle_ids=[1, 15, 19],
-            problem="测试问题",
-            count=3
+            principle_ids=[1, 15, 19], problem="测试问题", count=3
         )
         assert len(solutions) > 0
 
     def test_generate_solutions_with_principles(self):
         """测试指定原理生成方案"""
         solutions = self.engine.generate_solutions(
-            principle_ids=[1, 2, 3, 4, 5],
-            problem="如何改进车辆性能",
-            count=5
+            principle_ids=[1, 2, 3, 4, 5], problem="如何改进车辆性能", count=5
         )
         assert len(solutions) <= 5
 
     def test_generate_solutions_empty_principles(self):
         """测试空原理列表"""
-        solutions = self.engine.generate_solutions(
-            principle_ids=[],
-            problem="测试问题"
-        )
+        solutions = self.engine.generate_solutions(principle_ids=[], problem="测试问题")
         assert len(solutions) == 0
 
     def test_categorize_solutions(self):
         """测试解决方案分类"""
         solutions = self.engine.generate_solutions(
-            principle_ids=[1, 2, 15, 35],
-            problem="测试问题"
+            principle_ids=[1, 2, 15, 35], problem="测试问题"
         )
         categorized = self.engine.categorize_solutions(solutions)
         assert isinstance(categorized, dict)
@@ -63,8 +55,7 @@ class TestLocalTRIZEngine:
     def test_get_solution_statistics(self):
         """测试解决方案统计"""
         solutions = self.engine.generate_solutions(
-            principle_ids=[1, 15, 19, 35],
-            problem="测试问题"
+            principle_ids=[1, 15, 19, 35], problem="测试问题"
         )
         stats = self.engine.get_solution_statistics(solutions)
         assert isinstance(stats, dict)

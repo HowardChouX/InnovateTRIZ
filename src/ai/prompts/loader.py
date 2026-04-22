@@ -3,23 +3,22 @@ TRIZ提示词加载器
 从Python代码加载提示词模板
 """
 
-from typing import Optional, List, Dict
+from ...config.constants import INVENTIVE_PRINCIPLES as CN_INVENTIVE_PRINCIPLES
 from .templates import (
+    ALTSHULLER_SOLVING_STEPS,
     CONTRADICTION_SOLVER_TEMPLATE,
     ENGINEERING_PARAMETERS_39,
-    ALTSHULLER_SOLVING_STEPS,
     FUNCTION_ANALYSIS_TEMPLATE,
     STANDARD_SOLUTIONS_76,
-    SUFIELD_ANALYSIS_TEMPLATE
+    SUFIELD_ANALYSIS_TEMPLATE,
 )
-from ...config.constants import INVENTIVE_PRINCIPLES as CN_INVENTIVE_PRINCIPLES
 
 
 class PromptLoader:
     """提示词加载器"""
 
     @staticmethod
-    def get_principle(principle_number: int) -> Optional[Dict]:
+    def get_principle(principle_number: int) -> dict | None:
         """
         获取指定编号的发明原理详情
 
@@ -35,7 +34,7 @@ class PromptLoader:
         return None
 
     @staticmethod
-    def get_all_principles() -> Dict[int, Dict]:
+    def get_all_principles() -> dict[int, dict]:
         """获取所有40个发明原理"""
         return {
             pid: {"name": name, "synonyms": "", "sub_principles": []}
@@ -53,7 +52,7 @@ class PromptLoader:
         return ""
 
     @staticmethod
-    def get_principle_sub_principles(_principle_number: int) -> List[str]:
+    def get_principle_sub_principles(_principle_number: int) -> list[str]:
         """获取原理子原则列表"""
         return []
 
@@ -63,7 +62,7 @@ class PromptLoader:
         return CONTRADICTION_SOLVER_TEMPLATE
 
     @staticmethod
-    def get_39_parameters() -> Dict[int, str]:
+    def get_39_parameters() -> dict[int, str]:
         """获取39个标准工程参数"""
         return ENGINEERING_PARAMETERS_39.copy()
 
@@ -91,22 +90,19 @@ class PromptLoader:
         return FUNCTION_ANALYSIS_TEMPLATE
 
     @staticmethod
-    def get_standard_solution(class_num: int, group: int, standard: int) -> Optional[Dict]:
+    def get_standard_solution(class_num: int, group: int, standard: int) -> dict | None:
         """获取指定的标准解"""
         return STANDARD_SOLUTIONS_76.get((class_num, group, standard))
 
     @staticmethod
-    def get_all_standard_solutions() -> Dict:
+    def get_all_standard_solutions() -> dict:
         """获取所有标准解"""
         return STANDARD_SOLUTIONS_76.copy()
 
     @staticmethod
-    def get_standard_solutions_by_class(class_num: int) -> Dict:
+    def get_standard_solutions_by_class(class_num: int) -> dict:
         """获取指定类别的所有标准解"""
-        return {
-            k: v for k, v in STANDARD_SOLUTIONS_76.items()
-            if k[0] == class_num
-        }
+        return {k: v for k, v in STANDARD_SOLUTIONS_76.items() if k[0] == class_num}
 
     @staticmethod
     def get_subfield_analysis_template() -> str:
@@ -131,7 +127,7 @@ class PromptLoader:
         return f"**#{principle_number} {name}**"
 
     @staticmethod
-    def build_principles_text(principle_numbers: List[int]) -> str:
+    def build_principles_text(principle_numbers: list[int]) -> str:
         """
         构建多个原理的详细信息
 

@@ -3,8 +3,10 @@
 统一原理展示卡片
 """
 
+from collections.abc import Callable
+
 import flet as ft
-from typing import Optional, Callable
+
 from .category_badge import CategoryBadge, get_category_color
 
 
@@ -17,7 +19,7 @@ class PrincipleCard(ft.Container):
         name: str,
         definition: str,
         category: str = "物理",
-        on_click: Optional[Callable] = None,
+        on_click: Callable | None = None,
     ):
         """
         初始化原理卡片
@@ -63,7 +65,9 @@ class PrincipleCard(ft.Container):
                             border_radius=6,
                             bgcolor=get_category_color(self.category),
                         ),
-                        ft.Text(self.name, size=14, weight=ft.FontWeight.BOLD, expand=True),
+                        ft.Text(
+                            self.name, size=14, weight=ft.FontWeight.BOLD, expand=True
+                        ),
                     ],
                     spacing=8,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -73,14 +77,18 @@ class PrincipleCard(ft.Container):
                     controls=[
                         CategoryBadge(category=self.category),
                         ft.Container(expand=True),
-                        ft.Icon(ft.icons.Icons.ARROW_FORWARD, size=16, color=ft.Colors.GREY_600),
+                        ft.Icon(
+                            ft.icons.Icons.ARROW_FORWARD,
+                            size=16,
+                            color=ft.Colors.GREY_600,
+                        ),
                     ],
                 ),
             ],
             spacing=6,
         )
 
-    def _handle_click(self, _):
+    def _handle_click(self, _: ft.ControlEvent) -> None:
         """处理点击事件"""
         if self.on_click_handler:
             self.on_click_handler(self.principle_id)

@@ -3,11 +3,13 @@ AI功能测试
 测试MatrixTab中的AI开关和分析功能
 """
 
-import pytest
+from unittest.mock import Mock, patch
+
 import flet as ft
-from unittest.mock import Mock, patch, AsyncMock
-from src.ui.matrix_tab.matrix_page import MatrixTab
+import pytest
+
 from src.data.local_storage import LocalStorage
+from src.ui.matrix_tab.matrix_page import MatrixTab
 
 
 class TestMatrixTabAI:
@@ -50,7 +52,7 @@ class TestMatrixTabAI:
         assert self.matrix_tab.improving_params == []
         assert self.matrix_tab.worsening_params == []
 
-    @patch('src.ai.ai_client.get_ai_manager')
+    @patch("src.ai.ai_client.get_ai_manager")
     def test_ai_enabled_but_not_configured(self, mock_get_manager):
         """AI开启但未配置时提示"""
         mock_manager = Mock()
@@ -63,7 +65,7 @@ class TestMatrixTabAI:
         # 状态文本应显示
         assert self.matrix_tab.ai_enabled == True
 
-    @patch('src.ai.ai_client.get_ai_manager')
+    @patch("src.ai.ai_client.get_ai_manager")
     def test_ai_enabled_and_configured(self, mock_get_manager):
         """AI开启且已配置"""
         mock_manager = Mock()
@@ -86,7 +88,7 @@ class TestParameterPickerMultiSelect:
             page=page,
             param_type="improving",
             current_values=["速度"],
-            multi_select=True
+            multi_select=True,
         )
 
         assert picker.multi_select == True
@@ -98,10 +100,7 @@ class TestParameterPickerMultiSelect:
 
         page = Mock()
         picker = ParameterPicker(
-            page=page,
-            param_type="improving",
-            current_values=None,
-            multi_select=False
+            page=page, param_type="improving", current_values=None, multi_select=False
         )
 
         assert picker.multi_select == False
@@ -118,18 +117,16 @@ class TestAIFallback:
         matrix = manager.get_matrix("39")
 
         # 本地查询
-        result = matrix.query_matrix(
-            improving="速度",
-            worsening="能量消耗"
-        )
+        result = matrix.query_matrix(improving="速度", worsening="能量消耗")
 
         assert result.matrix_type == "39"
         assert len(result.principle_ids) > 0
 
-    @patch('src.ai.ai_client.get_ai_manager')
+    @patch("src.ai.ai_client.get_ai_manager")
     def test_local_analysis_when_ai_unavailable(self, mock_get_manager):
         """AI不可用时使用本地分析"""
         import asyncio
+
         from src.core.triz_engine import get_triz_engine
 
         mock_manager = Mock()
@@ -142,7 +139,7 @@ class TestAIFallback:
                 problem="手机需要更大电池但要保持轻薄",
                 improving_param="运动物体的能量消耗",
                 worsening_param="重量",
-                use_ai=False  # 明确关闭AI
+                use_ai=False,  # 明确关闭AI
             )
         )
 

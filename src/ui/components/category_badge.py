@@ -4,6 +4,7 @@
 """
 
 import flet as ft
+
 from ...config.constants import CATEGORY_COLORS
 
 
@@ -20,7 +21,9 @@ class CategoryBadge(ft.Container):
         """
         color = CATEGORY_COLORS.get(category, "#2196F3")
         super().__init__(
-            content=ft.Text(category, size=size, color=ft.Colors.WHITE, weight=ft.FontWeight.W_500),
+            content=ft.Text(
+                category, size=size, color=ft.Colors.WHITE, weight=ft.FontWeight.W_500
+            ),
             bgcolor=color,
             padding=3,
             border_radius=5,

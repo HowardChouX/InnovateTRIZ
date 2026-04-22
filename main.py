@@ -33,16 +33,15 @@ logging.basicConfig(
 )
 
 
-# 尝试添加文件日志处理器（Android上可能失败）
 def _is_android_env() -> bool:
-    """检测Android环境"""
+    """检测Android环境（Flet官方推荐方式）"""
+    if os.getenv("FLET_PLATFORM") == "android":
+        return True
     if sys.platform == "android":
         return True
     if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
         return True
     if "ANDROID_DATA" in os.environ:
-        return True
-    if os.getenv("FLET_APP_STORAGE_DATA"):
         return True
     return False
 
@@ -97,6 +96,7 @@ class TRIZApp:
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.padding = 0
         self.page.spacing = 0
+        self.page.bgcolor = COLORS.get("surface", "#F5F5F5")
 
         # 设置主题颜色
         self.page.theme = ft.Theme(
@@ -295,12 +295,8 @@ def main():
                 port=args.port,
                 assets_dir="assets",
             )
-        elif args.mode == "desktop":
-            # 桌面模式
-            ft.run(TRIZApp().main, view=ft.AppView.FLET_APP, assets_dir="assets")
         else:
-            # APK模式（移动应用）- 不需要指定view
-            # 在Android/iOS上自动适配
+            # 桌面/APK模式 - Flet自动根据运行平台选择
             ft.run(TRIZApp().main, assets_dir="assets")
 
     except KeyboardInterrupt:
@@ -313,4 +309,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

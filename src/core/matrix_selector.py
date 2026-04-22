@@ -3,11 +3,15 @@
 支持39矛盾矩阵，48矩阵为预留接口
 """
 
-from typing import List, Optional, Tuple, Dict
 import logging
+from typing import TYPE_CHECKING
+
+from ..config.constants import INVENTIVE_PRINCIPLES
 from ..data.models import MatrixQueryResult, PrincipleQueryResult
 from ..data.triz_constants import get_triz_data_loader
-from ..config.constants import INVENTIVE_PRINCIPLES
+
+if TYPE_CHECKING:
+    from ..data.triz_constants import TRIZDataLoader
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +27,12 @@ class ContradictionMatrix:
             matrix_type: 矩阵类型，"39" 或 "48"
         """
         self.matrix_type = matrix_type
-        self.parameters: List[str] = []
-        self.matrix: Dict[Tuple[str, str], List[int]] = {}
-        self._triz_loader = None
+        self.parameters: list[str] = []
+        self.matrix: dict[tuple[str, str], list[int]] = {}
+        self._triz_loader: TRIZDataLoader | None = None
         self._init_matrix()
 
-    def _init_matrix(self):
+    def _init_matrix(self) -> None:
         """初始化矩阵数据"""
         if self.matrix_type == "39":
             self._init_39_matrix()
@@ -37,30 +41,33 @@ class ContradictionMatrix:
         else:
             raise ValueError(f"不支持的矩阵类型: {self.matrix_type}")
 
-    def _init_39_matrix(self):
+    def _init_39_matrix(self) -> None:
         """初始化39矛盾矩阵"""
         # 从内置数据加载完整矩阵数据
-        self._triz_loader = get_triz_data_loader()
-        self.matrix = self._triz_loader.get_contradiction_matrix()
-        self.parameters = self._triz_loader.get_all_params()
+        loader = get_triz_data_loader()
+        self._triz_loader = loader
+        self.matrix = loader.get_contradiction_matrix()
+        self.parameters = loader.get_all_params()
 
-        logger.info(f"加载39矛盾矩阵，包含{len(self.parameters)}个参数和{len(self.matrix)}个组合")
+        logger.info(
+            f"加载39矛盾矩阵，包含{len(self.parameters)}个参数和{len(self.matrix)}个组合"
+        )
 
-    def _init_48_matrix(self):
+    def _init_48_matrix(self) -> None:
         """初始化48矛盾矩阵（预留）"""
         self.parameters = []
         self.matrix = {}
         logger.warning("48矛盾矩阵暂未实现，使用空矩阵")
 
-    def get_improving_params(self) -> List[str]:
+    def get_improving_params(self) -> list[str]:
         """获取所有可改善参数"""
         return self.parameters.copy()
 
-    def get_worsening_params(self) -> List[str]:
+    def get_worsening_params(self) -> list[str]:
         """获取所有可能恶化参数"""
         return self.parameters.copy()
 
-    def find_solutions(self, improving: str, worsening: str) -> List[int]:
+    def find_solutions(self, improving: str, worsening: str) -> list[int]:
         """
         查找对应的发明原理编号
 
@@ -93,7 +100,9 @@ class ContradictionMatrix:
         for (imp, wors), principles in self.matrix.items():
             if imp in improving or improving in imp:
                 if wors in worsening or worsening in wors:
-                    logger.info(f"找到部分匹配: {improving} vs {worsening} -> {principles}")
+                    logger.info(
+                        f"找到部分匹配: {improving} vs {worsening} -> {principles}"
+                    )
                     return principles
 
         # 参数名称标准化匹配
@@ -105,8 +114,13 @@ class ContradictionMatrix:
             norm_imp = self._normalize_param(imp)
             norm_wors = self._normalize_param(wors)
             if norm_imp == normalized_improving or normalized_improving in norm_imp:
-                if norm_wors == normalized_worsening or normalized_worsening in norm_wors:
-                    logger.info(f"找到标准化匹配: {improving} vs {worsening} -> {principles}")
+                if (
+                    norm_wors == normalized_worsening
+                    or normalized_worsening in norm_wors
+                ):
+                    logger.info(
+                        f"找到标准化匹配: {improving} vs {worsening} -> {principles}"
+                    )
                     return principles
 
         # 使用默认原理
@@ -120,12 +134,14 @@ class ContradictionMatrix:
         # 移除空格和特殊字符，转小写
         normalized = param.strip().lower()
         # 移除"运动物体的"和"静止物体的"前缀进行对比
-        normalized_no_prefix = normalized.replace("运动物体的", "").replace("静止物体的", "")
+        normalized_no_prefix = normalized.replace("运动物体的", "").replace(
+            "静止物体的", ""
+        )
         return normalized_no_prefix
 
-    def query_matrix(self,
-                    improving: Optional[str] = None,
-                    worsening: Optional[str] = None) -> MatrixQueryResult:
+    def query_matrix(
+        self, improving: str | None = None, worsening: str | None = None
+    ) -> MatrixQueryResult:
         """
         查询矛盾矩阵
 
@@ -156,19 +172,21 @@ class ContradictionMatrix:
             if pid in INVENTIVE_PRINCIPLES:
                 principle_names.append(INVENTIVE_PRINCIPLES[pid])
 
-        logger.info(f"矩阵查询结果: {improving} vs {worsening} -> {principle_ids} ({principle_names})")
+        logger.info(
+            f"矩阵查询结果: {improving} vs {worsening} -> {principle_ids} ({principle_names})"
+        )
 
         return MatrixQueryResult(
             improving_param=improving,
             worsening_param=worsening,
             principle_ids=principle_ids,
             matrix_type=self.matrix_type,
-            is_auto_detected=is_auto_detected
+            is_auto_detected=is_auto_detected,
         )
 
-    def query_with_result(self,
-                         improving: Optional[str] = None,
-                         worsening: Optional[str] = None) -> PrincipleQueryResult:
+    def query_with_result(
+        self, improving: str | None = None, worsening: str | None = None
+    ) -> PrincipleQueryResult:
         """
         查询矛盾矩阵并返回完整结果
 
@@ -186,10 +204,10 @@ class ContradictionMatrix:
             improving_param=result.improving_param,
             worsening_param=result.worsening_param,
             source="matrix",
-            confidence="高" if len(result.principle_ids) > 0 else "低"
+            confidence="高" if len(result.principle_ids) > 0 else "低",
         )
 
-    def suggest_worsening_params(self, improving: str) -> List[str]:
+    def suggest_worsening_params(self, improving: str) -> list[str]:
         """
         根据改善参数建议可能的恶化参数
 
@@ -211,11 +229,17 @@ class ContradictionMatrix:
 
         # 如果没有找到建议，返回一些常见参数
         if not suggestions:
-            suggestions = ["移动物体用的能源", "重量", "成本", "设备的复杂性", "时间的浪费"]
+            suggestions = [
+                "移动物体用的能源",
+                "重量",
+                "成本",
+                "设备的复杂性",
+                "时间的浪费",
+            ]
 
         return suggestions[:10]  # 最多返回10个建议
 
-    def validate_parameters(self, improving: str, worsening: str) -> Tuple[bool, str]:
+    def validate_parameters(self, improving: str, worsening: str) -> tuple[bool, str]:
         """
         验证参数是否有效
 
@@ -234,12 +258,10 @@ class ContradictionMatrix:
 
         # 检查参数是否在列表中（宽松检查）
         improving_valid = any(
-            improving in param or param in improving
-            for param in self.parameters
+            improving in param or param in improving for param in self.parameters
         )
         worsening_valid = any(
-            worsening in param or param in worsening
-            for param in self.parameters
+            worsening in param or param in worsening for param in self.parameters
         )
 
         if not improving_valid:
@@ -254,11 +276,11 @@ class ContradictionMatrix:
 class MatrixManager:
     """矩阵管理器"""
 
-    def __init__(self):
-        self.matrices: Dict[str, ContradictionMatrix] = {}
+    def __init__(self) -> None:
+        self.matrices: dict[str, ContradictionMatrix] = {}
         self.current_matrix_type = "39"
 
-    def get_matrix(self, matrix_type: Optional[str] = None) -> ContradictionMatrix:
+    def get_matrix(self, matrix_type: str | None = None) -> ContradictionMatrix:
         """
         获取指定类型的矛盾矩阵
 
@@ -276,7 +298,7 @@ class MatrixManager:
 
         return self.matrices[matrix_type]
 
-    def set_current_matrix(self, matrix_type: str):
+    def set_current_matrix(self, matrix_type: str) -> None:
         """设置当前矩阵类型"""
         if matrix_type not in ["39", "48"]:
             raise ValueError(f"不支持的矩阵类型: {matrix_type}")
@@ -288,11 +310,21 @@ class MatrixManager:
         """获取当前矩阵"""
         return self.get_matrix(self.current_matrix_type)
 
-    def get_available_matrix_types(self) -> List[Dict[str, str | bool]]:
+    def get_available_matrix_types(self) -> list[dict[str, str | bool]]:
         """获取可用的矩阵类型"""
         return [
-            {"type": "39", "name": "39矛盾矩阵", "description": "标准39参数矛盾矩阵", "enabled": True},
-            {"type": "48", "name": "48矛盾矩阵", "description": "扩展48参数矛盾矩阵（规划中）", "enabled": False}
+            {
+                "type": "39",
+                "name": "39矛盾矩阵",
+                "description": "标准39参数矛盾矩阵",
+                "enabled": True,
+            },
+            {
+                "type": "48",
+                "name": "48矛盾矩阵",
+                "description": "扩展48参数矛盾矩阵（规划中）",
+                "enabled": False,
+            },
         ]
 
 

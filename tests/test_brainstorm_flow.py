@@ -2,16 +2,14 @@
 头脑风暴流程测试
 """
 
-import pytest
-from unittest.mock import Mock, patch, AsyncMock
-from typing import List
-
-import sys
 import os
+import sys
+
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.ai.prompts.builder import PromptBuilder
-from src.ai.prompts.loader import PromptLoader
 from src.data.models import AIAnalysisRequest, Solution
 
 
@@ -33,7 +31,7 @@ class TestBrainstormFlow:
             improving_param="运动物体的能量消耗",
             worsening_param="重量",
             principles=[1, 2, 3, 15, 28],
-            solution_count=5
+            solution_count=5,
         )
 
         # 验证基本参数被正确填入
@@ -56,7 +54,7 @@ class TestBrainstormFlow:
             improving_param="",
             worsening_param="",
             principles=[1, 2, 3],
-            solution_count=3
+            solution_count=3,
         )
 
         # 验证空参数被替换为"未指定"
@@ -72,7 +70,7 @@ class TestBrainstormFlow:
             improving_param="能量消耗",
             worsening_param="成本",
             principles=[15],
-            solution_count=1
+            solution_count=1,
         )
 
         assert "减少设备能耗" in prompt
@@ -86,7 +84,7 @@ class TestBrainstormFlow:
             improving_param="温度",
             worsening_param="重量",
             principle_ids=[1, 2, 3],
-            solution_count=5
+            solution_count=5,
         )
 
         assert request.problem == "手机散热问题"
@@ -102,7 +100,7 @@ class TestBrainstormFlow:
             improving_param="改善参数",
             worsening_param="恶化参数",
             principle_ids=[1, 2],
-            solution_count=3
+            solution_count=3,
         )
 
         data = request.to_dict()
@@ -121,7 +119,7 @@ class TestBrainstormFlow:
             confidence=0.9,
             is_ai_generated=True,
             category="物理",
-            examples=["手机模块化设计", "电脑组装式结构"]
+            examples=["手机模块化设计", "电脑组装式结构"],
         )
 
         assert solution.principle_id == 1
@@ -136,7 +134,7 @@ class TestBrainstormFlow:
             principle_id=2,
             principle_name="抽取",
             description="提取关键部分",
-            confidence=0.8
+            confidence=0.8,
         )
 
         data = solution.to_dict()
@@ -155,7 +153,7 @@ class TestBrainstormFlow:
             "is_ai_generated": True,
             "category": "几何",
             "examples": ["案例1", "案例2"],
-            "created_at": "2024-01-01T12:00:00"
+            "created_at": "2024-01-01T12:00:00",
         }
 
         solution = Solution.from_dict(data)
@@ -176,7 +174,7 @@ class TestPromptTemplateRequirements:
             improving_param="重量",
             worsening_param="强度",
             principles=[1, 2, 3],
-            solution_count=3
+            solution_count=3,
         )
 
         # 验证4字段结构
@@ -192,7 +190,7 @@ class TestPromptTemplateRequirements:
             improving_param="效率",
             worsening_param="成本",
             principles=[1, 2],
-            solution_count=2
+            solution_count=2,
         )
 
         # 验证创新点字段
@@ -208,7 +206,7 @@ class TestPromptTemplateRequirements:
             improving_param="能量消耗",
             worsening_param="复杂性",
             principles=[1, 2, 3],
-            solution_count=3
+            solution_count=3,
         )
 
         # 验证跨领域案例字段
@@ -224,7 +222,7 @@ class TestPromptTemplateRequirements:
             improving_param="速度",
             worsening_param="能耗",
             principles=[1],
-            solution_count=1
+            solution_count=1,
         )
 
         # 验证预期效果和置信度字段
@@ -242,17 +240,24 @@ class TestPromptTemplateRequirements:
             improving_param="改善",
             worsening_param="恶化",
             principles=[1, 2, 3],
-            solution_count=5
+            solution_count=5,
         )
 
         # 检查没有Python format占位符
         import re
-        placeholders = re.findall(r'\{[a-zA-Z_]+\}', prompt)
+
+        placeholders = re.findall(r"\{[a-zA-Z_]+\}", prompt)
         # 过滤掉合理的占位符（如果AI返回的JSON中有的话）
-        invalid_placeholders = [p for p in placeholders if p not in ['{problem}', '{improving}', '{worsening}']]
+        invalid_placeholders = [
+            p
+            for p in placeholders
+            if p not in ["{problem}", "{improving}", "{worsening}"]
+        ]
 
         # 确保没有无效占位符
-        assert len(invalid_placeholders) == 0, f"发现未替换的占位符: {invalid_placeholders}"
+        assert (
+            len(invalid_placeholders) == 0
+        ), f"发现未替换的占位符: {invalid_placeholders}"
 
 
 class TestBrainstormParameterLimit:
@@ -291,7 +296,7 @@ class TestBrainstormParameterLimit:
             improving_param=None,
             worsening_param=None,
             principle_ids=[1, 2, 3],
-            solution_count=5
+            solution_count=5,
         )
 
         assert request.improving_param is None
@@ -307,7 +312,7 @@ class TestSolutionParsing:
 
         client = AIClient()
 
-        json_response = '''[
+        json_response = """[
             {
                 "principle_id": 1,
                 "principle_name": "分割",
@@ -322,7 +327,7 @@ class TestSolutionParsing:
                 "examples": ["笔记本电脑:联想拯救者的智能风扇控制", "数据中心:谷歌的AI散热优化"],
                 "confidence": 0.85
             }
-        ]'''
+        ]"""
 
         solutions = client._parse_solutions(json_response, [1, 15])
 
@@ -360,7 +365,7 @@ class TestSinglePrincipleSolutionPrompt:
             problem="如何减少手机重量同时提高性能",
             improving_param="重量",
             worsening_param="性能",
-            principle_id=1
+            principle_id=1,
         )
 
         # 验证问题被包含
@@ -378,7 +383,7 @@ class TestSinglePrincipleSolutionPrompt:
             problem="模块化设计问题",
             improving_param="复杂性",
             worsening_param="成本",
-            principle_id=1
+            principle_id=1,
         )
 
         # 原理1是分割原理，同义词应该被包含
@@ -390,10 +395,7 @@ class TestSinglePrincipleSolutionPrompt:
 
         builder = PromptBuilder()
         prompt = builder.build_single_principle_solution_prompt(
-            problem="测试问题",
-            improving_param="",
-            worsening_param="",
-            principle_id=15
+            problem="测试问题", improving_param="", worsening_param="", principle_id=15
         )
 
         # 空参数应被替换为"未指定"
@@ -410,7 +412,7 @@ class TestSinglePrincipleSolutionPrompt:
             problem="自适应系统设计",
             improving_param="适应性",
             worsening_param="复杂性",
-            principle_id=15
+            principle_id=15,
         )
 
         # 应该包含动态性相关内容
@@ -427,7 +429,7 @@ class TestSinglePrincipleSolutionPrompt:
             problem=specific_problem,
             improving_param="电池续航",
             worsening_param="重量",
-            principle_id=22  # 变害为利原理
+            principle_id=22,  # 变害为利原理
         )
 
         # 验证具体问题描述被包含
@@ -444,27 +446,28 @@ class TestSinglePrincipleGeneration:
         client = AIClient()
 
         # 这个测试检查方法是否存在
-        assert hasattr(client, 'generate_solution_for_principle')
+        assert hasattr(client, "generate_solution_for_principle")
 
     def test_generate_solution_for_principle_signature(self):
         """测试单个原理生成方法签名"""
-        from src.ai.ai_client import AIClient
         import inspect
+
+        from src.ai.ai_client import AIClient
 
         client = AIClient()
 
         # 检查方法存在
-        assert hasattr(client, 'generate_solution_for_principle')
+        assert hasattr(client, "generate_solution_for_principle")
 
         # 检查方法签名
         sig = inspect.signature(client.generate_solution_for_principle)
         params = list(sig.parameters.keys())
 
         # 应该包含: problem, improving_param, worsening_param, principle_id
-        assert 'problem' in params
-        assert 'improving_param' in params
-        assert 'worsening_param' in params
-        assert 'principle_id' in params
+        assert "problem" in params
+        assert "improving_param" in params
+        assert "worsening_param" in params
+        assert "principle_id" in params
 
 
 class TestIterativeGeneration:
@@ -472,18 +475,19 @@ class TestIterativeGeneration:
 
     def test_triz_engine_has_generate_solutions_iterative(self):
         """测试TRIZ引擎有遍历生成方法"""
+
         from src.core.triz_engine import TRIZEngine
-        import inspect
 
         engine = TRIZEngine()
 
         # 检查方法存在
-        assert hasattr(engine, 'generate_solutions_iterative')
+        assert hasattr(engine, "generate_solutions_iterative")
 
     def test_generate_solutions_iterative_signature(self):
         """测试遍历生成方法签名"""
-        from src.core.triz_engine import TRIZEngine
         import inspect
+
+        from src.core.triz_engine import TRIZEngine
 
         engine = TRIZEngine()
 
@@ -491,10 +495,10 @@ class TestIterativeGeneration:
         params = list(sig.parameters.keys())
 
         # 应该包含必要参数
-        assert 'problem' in params
-        assert 'improving_param' in params
-        assert 'worsening_param' in params
-        assert 'principle_ids' in params
+        assert "problem" in params
+        assert "improving_param" in params
+        assert "worsening_param" in params
+        assert "principle_ids" in params
 
 
 if __name__ == "__main__":

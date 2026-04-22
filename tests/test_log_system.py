@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TRIZ应用日志测试脚本
 用于APK打包后的环境测试和日志输出
@@ -8,25 +7,23 @@ TRIZ应用日志测试脚本
     # 或在APK中运行时自动执行
 """
 
-import sys
 import os
+import sys
 from datetime import datetime
-from pathlib import Path
 
 # 添加src目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.utils.logger import (
-    get_logger,
-    get_triz_logger,
-    log_info,
-    log_debug,
-    log_warning,
-    log_error,
     IS_ANDROID,
+    LOG_DIR,
     LOG_FILE,
     TEST_LOG_FILE,
-    LOG_DIR
+    get_logger,
+    log_debug,
+    log_error,
+    log_info,
+    log_warning,
 )
 
 
@@ -60,20 +57,20 @@ class LogTestRunner:
             if result.get("message"):
                 self.logger.info(f"详情: {result['message']}")
 
-            self.results.append({
-                "name": test_name,
-                "passed": result.get("passed", False),
-                "message": result.get("message", "")
-            })
+            self.results.append(
+                {
+                    "name": test_name,
+                    "passed": result.get("passed", False),
+                    "message": result.get("message", ""),
+                }
+            )
 
         except Exception as e:
             self.fail_count += 1
             self.logger.error(f"测试异常: {e}")
-            self.results.append({
-                "name": test_name,
-                "passed": False,
-                "message": f"异常: {str(e)}"
-            })
+            self.results.append(
+                {"name": test_name, "passed": False, "message": f"异常: {str(e)}"}
+            )
 
     def print_summary(self):
         """打印测试摘要"""
@@ -84,7 +81,7 @@ class LogTestRunner:
         self.logger.info(f"通过: {self.pass_count} ✅")
         self.logger.info(f"失败: {self.fail_count} ❌")
         self.logger.info(f"通过率: {self.pass_count/self.test_count*100:.1f}%")
-        self.logger.info(f"\n日志文件位置:")
+        self.logger.info("\n日志文件位置:")
         self.logger.info(f"  - 应用日志: {LOG_FILE}")
         self.logger.info(f"  - 测试日志: {TEST_LOG_FILE}")
 
@@ -135,6 +132,7 @@ def test_system_info():
     """测试系统信息获取"""
     try:
         from src.utils.logger import TRIZLogger
+
         info = TRIZLogger.get_system_info()
         assert "platform" in info
         assert "python_version" in info
@@ -172,6 +170,7 @@ def test_triz_engine_logging():
     """测试TRIZ引擎日志"""
     try:
         from src.core.triz_engine import get_triz_engine
+
         logger = get_logger("TRIZ_ENGINE")
         engine = get_triz_engine()
         logger.info(f"TRIZ引擎实例: {type(engine).__name__}")
@@ -184,6 +183,7 @@ def test_matrix_selector_logging():
     """测试矛盾矩阵日志"""
     try:
         from src.core.matrix_selector import get_matrix_manager
+
         logger = get_logger("MATRIX")
         manager = get_matrix_manager()
         matrix = manager.get_matrix("39")
@@ -198,6 +198,7 @@ def test_principle_service_logging():
     """测试原理服务日志"""
     try:
         from src.core.principle_service import get_principle_service
+
         logger = get_logger("PRINCIPLE")
         service = get_principle_service()
         principles = service.get_all_principles()
@@ -211,6 +212,7 @@ def test_storage_logging():
     """测试存储日志"""
     try:
         from src.data.local_storage import LocalStorage
+
         logger = get_logger("STORAGE")
         storage = LocalStorage()
         storage.initialize()
@@ -226,6 +228,7 @@ def test_ai_client_logging():
     """测试AI客户端日志"""
     try:
         from src.ai.ai_client import get_ai_manager
+
         logger = get_logger("AI_CLIENT")
         ai_manager = get_ai_manager()
         logger.info(f"AI管理器启用状态: {ai_manager.is_enabled()}")
@@ -238,6 +241,7 @@ def test_settings_logging():
     """测试设置日志"""
     try:
         from src.config.settings import AppSettings
+
         logger = get_logger("SETTINGS")
         settings = AppSettings()
         logger.info(f"设置实例: {type(settings).__name__}")

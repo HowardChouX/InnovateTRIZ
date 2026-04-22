@@ -3,15 +3,14 @@ TRIZ提示词构建器
 将TRIZ知识注入提示词
 """
 
-from typing import List, Optional
 from .loader import PromptLoader
-from .templates import SOLUTION_GENERATION_TEMPLATE, SINGLE_PRINCIPLE_TEMPLATE
+from .templates import SINGLE_PRINCIPLE_TEMPLATE, SOLUTION_GENERATION_TEMPLATE
 
 
 class PromptBuilder:
     """提示词构建器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.loader = PromptLoader()
 
     def build_contradiction_prompt(
@@ -19,7 +18,7 @@ class PromptBuilder:
         problem: str,
         improving_param: str = "",
         worsening_param: str = "",
-        principles: Optional[List[int]] = None
+        principles: list[int] | None = None,
     ) -> str:
         """
         构建矛盾求解提示词
@@ -45,7 +44,9 @@ class PromptBuilder:
             if name:
                 principle_names.append(f"#{pid} {name}")
 
-        principles_name_text = ", ".join(principle_names) if principle_names else "待确定"
+        principles_name_text = (
+            ", ".join(principle_names) if principle_names else "待确定"
+        )
 
         # 获取矛盾求解模板
         solver_template = self.loader.get_contradiction_solver_template()
@@ -77,8 +78,8 @@ Please analyze the problem and provide innovative solutions using the recommende
         problem: str,
         improving_param: str = "",
         worsening_param: str = "",
-        principles: Optional[List[int]] = None,
-        solution_count: int = 5
+        principles: list[int] | None = None,
+        solution_count: int = 5,
     ) -> str:
         """
         构建解决方案生成提示词（用于AI生成解决方案）
@@ -113,8 +114,12 @@ Please analyze the problem and provide innovative solutions using the recommende
                     principles_text_lines.append(f"  {i}. {sub}")
                 principles_text_lines.append("")
 
-        principles_text = "\n".join(principle_names) if principle_names else "未指定具体原理"
-        principles_detail = "\n".join(principles_text_lines) if principles_text_lines else ""
+        principles_text = (
+            "\n".join(principle_names) if principle_names else "未指定具体原理"
+        )
+        principles_detail = (
+            "\n".join(principles_text_lines) if principles_text_lines else ""
+        )
 
         prompt = SOLUTION_GENERATION_TEMPLATE.format(
             problem=problem,
@@ -123,7 +128,7 @@ Please analyze the problem and provide innovative solutions using the recommende
             improving=improving_param or "未指定",
             worsening=worsening_param or "未指定",
             principles_text=principles_text,
-            solution_count=solution_count
+            solution_count=solution_count,
         )
 
         # 追加原理详细信息
@@ -137,7 +142,7 @@ Please analyze the problem and provide innovative solutions using the recommende
         problem: str,
         improving_param: str = "",
         worsening_param: str = "",
-        principle_id: int = 1
+        principle_id: int = 1,
     ) -> str:
         """
         构建单个原理分析的提示词（用于遍历注入）
@@ -151,7 +156,9 @@ Please analyze the problem and provide innovative solutions using the recommende
         Returns:
             用于生成单个解决方案的提示词
         """
-        principle_name = self.loader.get_principle_name(principle_id) or f"原理{principle_id}"
+        principle_name = (
+            self.loader.get_principle_name(principle_id) or f"原理{principle_id}"
+        )
         synonyms = self.loader.get_principle_synonyms(principle_id) or ""
         sub_principles = self.loader.get_principle_sub_principles(principle_id) or []
 
@@ -170,7 +177,7 @@ Please analyze the problem and provide innovative solutions using the recommende
             worsening_param=worsening_param or "未指定",
             principle_id=principle_id,
             principle_name=principle_name,
-            principle_detail=principle_detail
+            principle_detail=principle_detail,
         )
 
         return prompt
@@ -305,7 +312,9 @@ Please guide the user through Substance-Field Analysis of this problem.
 """
         return template
 
-    def build_standard_solutions_prompt(self, problem: str = "", solution_class: int = 0) -> str:
+    def build_standard_solutions_prompt(
+        self, problem: str = "", solution_class: int = 0
+    ) -> str:
         """
         构建76标准解提示词
 
@@ -322,10 +331,12 @@ Please guide the user through Substance-Field Analysis of this problem.
         # 获取指定类别的标准解
         if solution_class > 0:
             solutions = loader.get_standard_solutions_by_class(solution_class)
-            solutions_text = "\n".join([
-                f"- Class {k[0]}.{k[1]}.{k[2]}: {v['name']}"
-                for k, v in solutions.items()
-            ])
+            solutions_text = "\n".join(
+                [
+                    f"- Class {k[0]}.{k[1]}.{k[2]}: {v['name']}"
+                    for k, v in solutions.items()
+                ]
+            )
         else:
             solutions_text = "All 76 Standard Solutions available"
 

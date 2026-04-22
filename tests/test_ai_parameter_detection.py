@@ -3,16 +3,17 @@ AI参数检测测试
 测试AI分析参数功能
 """
 
-import pytest
-import sys
-import os
 import asyncio
+import os
+import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.ai.ai_client import AIClient
-from src.config.settings import AppSettings
 from src.config.constants import ENGINEERING_PARAMETERS_39
+from src.config.settings import AppSettings
 
 
 class TestAIClient:
@@ -32,7 +33,7 @@ class TestAIClient:
             api_key=self.settings.ai_api_key,
             provider=self.settings.ai_provider,
             base_url=self.settings.ai_base_url,
-            model=self.settings.ai_model
+            model=self.settings.ai_model,
         )
 
         if not client.is_available():
@@ -76,7 +77,7 @@ class TestAIClient:
             api_key=self.settings.ai_api_key,
             provider=self.settings.ai_provider,
             base_url=self.settings.ai_base_url,
-            model=self.settings.ai_model
+            model=self.settings.ai_model,
         )
 
         if not client.is_available():
@@ -105,7 +106,7 @@ class TestAIClient:
             api_key=self.settings.ai_api_key,
             provider=self.settings.ai_provider,
             base_url=self.settings.ai_base_url,
-            model=self.settings.ai_model
+            model=self.settings.ai_model,
         )
 
         if not client.is_available():
@@ -132,7 +133,9 @@ class TestParameterValidation:
 
     def test_engineering_params_include_energy(self):
         """测试能量参数存在"""
-        energy_params = [p for p in ENGINEERING_PARAMETERS_39 if "能源" in p or "能量" in p]
+        energy_params = [
+            p for p in ENGINEERING_PARAMETERS_39 if "能源" in p or "能量" in p
+        ]
         assert len(energy_params) >= 2, "应该有多个能量相关参数"
         print(f"能量参数: {energy_params}")
 

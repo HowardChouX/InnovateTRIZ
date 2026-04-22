@@ -3,9 +3,10 @@
 使用传统方式实现Tab切换，但保持页面隔离
 """
 
-import flet as ft
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
+
+import flet as ft
 
 from ..config.constants import COLORS
 
@@ -23,17 +24,17 @@ class TRIZAppShell:
     使用传统方式管理Tab切换
     """
 
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page) -> None:
         self.page = page
         self._tab_registry: dict[str, ft.Container] = {}
-        self._current_tab: Optional[str] = None
-        self._main_content: Optional[ft.Container] = None
-        self._nav_bar: Optional[ft.NavigationBar] = None
-        self._settings_tab: Optional[object] = None  # 存储settings_tab引用
+        self._current_tab: str | None = None
+        self._main_content: ft.Container | None = None
+        self._nav_bar: ft.NavigationBar | None = None
+        self._settings_tab: object | None = None  # 存储settings_tab引用
 
         logger.info("TRIZAppShell初始化完成")
 
-    def add_tab(self, tab_id: str, content: ft.Control):
+    def add_tab(self, tab_id: str, content: ft.Control) -> None:
         """注册Tab内容 - content是Tab实例"""
         # content 继承自 TabContent(ft.Column)，可以直接使用
         # 包装成Container便于控制显隐
@@ -44,11 +45,11 @@ class TRIZAppShell:
             self._settings_tab = content
         logger.info(f"注册Tab: {tab_id}")
 
-    def get_settings_tab(self) -> Optional[object]:
+    def get_settings_tab(self) -> object | None:
         """获取settings_tab实例"""
         return self._settings_tab
 
-    def show(self):
+    def show(self) -> None:
         """显示应用外壳"""
         # 创建主内容容器
         self._main_content = ft.Container(expand=True)
@@ -89,7 +90,7 @@ class TRIZAppShell:
 
         logger.info("应用外壳显示完成")
 
-    def _on_nav_change(self, _):  # type: ignore
+    def _on_nav_change(self, e: ft.NavigationBar) -> None:
         """导航栏切换处理"""
         index = self._nav_bar.selected_index if self._nav_bar else 0
         tab_map = {
@@ -100,7 +101,7 @@ class TRIZAppShell:
         new_tab = tab_map.get(index, ROUTE_MATRIX)
         self._switch_tab(new_tab)
 
-    def _switch_tab(self, tab_id: str):
+    def _switch_tab(self, tab_id: str) -> None:
         """切换Tab"""
         logger.info(f"_switch_tab called with: {tab_id}")
 
@@ -154,11 +155,11 @@ class TRIZAppShell:
         logger.info(f"page.update() completed for {tab_id}")
         logger.info(f"切换到Tab: {tab_id} 完成")
 
-    def get_current_tab(self) -> Optional[str]:
+    def get_current_tab(self) -> str | None:
         """获取当前Tab标识"""
         return self._current_tab
 
-    def refresh_current_tab(self):
+    def refresh_current_tab(self) -> None:
         """刷新当前Tab内容"""
         if self._current_tab and self._current_tab in self._tab_registry:
             container = self._tab_registry[self._current_tab]
@@ -172,7 +173,7 @@ class TRIZAppShell:
 class TabContent(ft.Column):
     """Tab内容基类"""
 
-    def __init__(self, tab_id: str):
+    def __init__(self, tab_id: str) -> None:
         self.tab_id = tab_id
         super().__init__(
             expand=True,
@@ -180,11 +181,11 @@ class TabContent(ft.Column):
             scroll=ft.ScrollMode.AUTO,
         )
 
-    def on_show(self):
+    def on_show(self) -> None:
         """当Tab显示时调用"""
         pass
 
-    def on_hide(self):
+    def on_hide(self) -> None:
         """当Tab隐藏时调用"""
         pass
 
@@ -238,10 +239,10 @@ class AppShell(ft.NavigationBar):
 
         logger.info(f"切换到Tab: {self.current_tab}")
 
-        if self.on_tab_change:
+        if self.on_tab_change is not None:
             self.on_tab_change(self.current_tab)
 
-    def set_tab(self, tab: str):
+    def set_tab(self, tab: str) -> None:
         """设置当前Tab"""
         self.current_tab = tab
         if tab == self.TAB_MATRIX:

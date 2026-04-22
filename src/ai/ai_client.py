@@ -4,25 +4,30 @@ AI客户端模块
 """
 
 import logging
-from typing import Optional, List, Dict, Any, cast
 from datetime import datetime
+from typing import Any, cast
 
-from openai import AsyncOpenAI, APIError, APITimeoutError, APIConnectionError
-
-from ..data.models import AIAnalysisRequest, AIAnalysisResponse, Solution
-from ..config.constants import (
-    DEFAULT_AI_MODEL,
-    DEEPSEEK_API_BASE,
-    OPENROUTER_API_BASE,
-    INVENTIVE_PRINCIPLES,
-    PRINCIPLE_CATEGORIES,
-    ENGINEERING_PARAMETERS_39,
+from openai import (  # type: ignore[import-not-found]
+    APIConnectionError,
+    APIError,
+    APITimeoutError,
+    AsyncOpenAI,
 )
+
+from ..config.constants import (
+    DEEPSEEK_API_BASE,
+    DEFAULT_AI_MODEL,
+    ENGINEERING_PARAMETERS_39,
+    INVENTIVE_PRINCIPLES,
+    OPENROUTER_API_BASE,
+    PRINCIPLE_CATEGORIES,
+)
+from ..data.models import AIAnalysisRequest, AIAnalysisResponse, Solution
 
 logger = logging.getLogger(__name__)
 
 
-def fuzzy_match_param(param: str, param_list: list) -> str:
+def fuzzy_match_param(param: str, param_list: list[str]) -> str:
     """将参数名模糊匹配到参数列表
 
     Args:
@@ -113,10 +118,10 @@ class AIClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         provider: str = "deepseek",
-        base_url: Optional[str] = None,
-        model: Optional[str] = None,
+        base_url: str | None = None,
+        model: str | None = None,
     ):
         """
         初始化AI客户端
@@ -137,7 +142,7 @@ class AIClient:
         if self.enabled:
             self._init_client()
 
-    def _init_client(self):
+    def _init_client(self) -> None:
         """初始化OpenAI客户端"""
         try:
             if self.base_url:
@@ -195,7 +200,7 @@ class AIClient:
             logger.error(f"API连接测试失败: {e}")
             return False
 
-    async def detect_parameters(self, problem: str) -> Dict[str, Any]:
+    async def detect_parameters(self, problem: str) -> dict[str, Any]:
         """
         使用AI检测技术参数
 
@@ -334,7 +339,7 @@ JSON格式：
             return {"improving": "", "worsening": "", "error": str(e)}
 
     def _extract_from_response(
-        self, content: str, param_type: str, param_list: list
+        self, content: str, param_type: str, param_list: list[str]
     ) -> str:
         """从AI响应中提取参数"""
         content_lower = content.lower()
@@ -430,8 +435,8 @@ JSON格式：
             return unique_params[-1]
 
     def _extract_multiple_from_response(
-        self, content: str, param_type: str, param_list: list
-    ) -> List[str]:
+        self, content: str, param_type: str, param_list: list[str]
+    ) -> list[str]:
         """从AI响应中提取多个参数"""
         content_lower = content.lower()
 
@@ -655,8 +660,8 @@ JSON格式：
         problem: str,
         improving_param: str,
         worsening_param: str,
-        principle_id: int
-    ) -> Optional[Solution]:
+        principle_id: int,
+    ) -> Solution | None:
         """为单个原理生成解决方案"""
         if not self.is_available():
             logger.warning("AI服务不可用，无法生成解决方案")
@@ -669,7 +674,7 @@ JSON格式：
             problem=problem,
             improving_param=improving_param,
             worsening_param=worsening_param,
-            principle_id=principle_id
+            principle_id=principle_id,
         )
 
         try:
@@ -685,7 +690,10 @@ JSON格式：
 
             # 移除思考标签
             import re as regex_module
-            content = regex_module.sub(r'<think>.*?</think>', '', content, flags=regex_module.DOTALL)
+
+            content = regex_module.sub(
+                r"<think>.*?</think>", "", content, flags=regex_module.DOTALL
+            )
 
             # 解析解决方案
             solutions = self._parse_solutions(content, [principle_id])
@@ -712,8 +720,8 @@ JSON格式：
         )
 
     def _parse_solutions(
-        self, content: str, principle_ids: List[int]
-    ) -> List[Solution]:
+        self, content: str, principle_ids: list[int]
+    ) -> list[Solution]:
         """解析AI返回的解决方案"""
         solutions = []
 
@@ -818,8 +826,8 @@ JSON格式：
         return False, None
 
     def _parse_single_solution(
-        self, item: dict, _principle_ids: List[int]
-    ) -> Optional[Solution]:
+        self, item: dict, _principle_ids: list[int]
+    ) -> Solution | None:
         """解析单个解决方案对象"""
         from ..config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
 
@@ -863,7 +871,9 @@ JSON格式：
             logger.warning(f"解析单个解决方案失败: {e}")
             return None
 
-    def _fallback_parse(self, content: str, _principle_ids: List[int]) -> List[Solution]:
+    def _fallback_parse(
+        self, content: str, _principle_ids: list[int]
+    ) -> list[Solution]:
         """最后的备选解析方法 - 文本提取"""
         import re
 
@@ -903,7 +913,7 @@ JSON格式：
 
         return solutions
 
-    def _create_default_solutions(self, principle_ids: List[int]) -> List[Solution]:
+    def _create_default_solutions(self, principle_ids: list[int]) -> list[Solution]:
         """创建默认解决方案（当AI解析失败时）"""
         solutions = []
 
@@ -936,18 +946,22 @@ JSON格式：
 class AIManager:
     """AI管理器"""
 
-    def __init__(self):
-        self.client = None
-        self.config = {"provider": "deepseek", "api_key": None, "enabled": False}
+    def __init__(self) -> None:
+        self.client: AIClient | None = None
+        self.config: dict[str, Any] = {
+            "provider": "deepseek",
+            "api_key": None,
+            "enabled": False,
+        }
         self._is_connected = False  # 缓存实际连接状态
 
     def initialize(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         provider: str = "deepseek",
-        base_url: Optional[str] = None,
-        model: Optional[str] = None,
-    ):
+        base_url: str | None = None,
+        model: str | None = None,
+    ) -> None:
         """初始化AI管理器"""
         if api_key:
             self.config["api_key"] = api_key
@@ -965,7 +979,7 @@ class AIManager:
 
     def is_enabled(self) -> bool:
         """检查AI是否启用"""
-        return (
+        return bool(
             self.config["enabled"]
             and self.client is not None
             and self.client.is_available()
@@ -975,11 +989,11 @@ class AIManager:
         """检查AI是否已连接"""
         return self._is_connected
 
-    def set_connected(self, connected: bool):
+    def set_connected(self, connected: bool) -> None:
         """设置连接状态"""
         self._is_connected = connected
 
-    def get_client(self) -> Optional[AIClient]:
+    def get_client(self) -> AIClient | None:
         """获取AI客户端"""
         return self.client if self.is_enabled() else None
 
@@ -1003,4 +1017,3 @@ ai_manager = AIManager()
 def get_ai_manager() -> AIManager:
     """获取全局AI管理器"""
     return ai_manager
-

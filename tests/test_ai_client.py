@@ -4,9 +4,10 @@ AI 客户端测试模块
 测试 AIManager 和 AIClient 的初始化、配置和行为
 使用 Mock 避免真实 API 调用
 """
-import pytest
-from unittest.mock import patch, MagicMock
-from src.ai.ai_client import AIManager, AIClient, get_ai_manager
+
+from unittest.mock import patch
+
+from src.ai.ai_client import AIClient, AIManager, get_ai_manager
 
 
 class TestAIManager:
@@ -66,7 +67,7 @@ class TestAIManagerMocked:
     def setup_method(self):
         self.manager = AIManager()
 
-    @patch.object(AIClient, 'is_available', return_value=False)
+    @patch.object(AIClient, "is_available", return_value=False)
     def test_ai_unavailable_when_client_returns_false(self, mock_is_available):
         """测试客户端返回 False 时 AI 不可用"""
         self.manager.initialize(api_key="fake_key", provider="deepseek")

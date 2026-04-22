@@ -3,9 +3,9 @@
 验证AI连接状态与实际联通情况是否一致
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime
 
 # 测试用的模拟数据
 MOCK_API_KEY = "test-api-key-12345"
@@ -31,13 +31,14 @@ class MockAIClient:
         return {
             "improving": ["速度", "效率"],
             "worsening": ["重量", "成本"],
-            "explanation": "测试解释"
+            "explanation": "测试解释",
         }
 
     async def generate_solutions(self, request):
         if not self._available:
             raise Exception("AI连接失败")
         from src.data.models import AIAnalysisResponse, Solution
+
         return AIAnalysisResponse(
             success=True,
             solutions=[
@@ -46,9 +47,9 @@ class MockAIClient:
                     principle_name="分割原理",
                     description="测试方案",
                     confidence=0.9,
-                    is_ai_generated=True
+                    is_ai_generated=True,
                 )
-            ]
+            ],
         )
 
 
@@ -59,11 +60,7 @@ class MockAIManager:
         self._enabled = False
         self._connected = False
         self._client = None
-        self.config = {
-            "provider": MOCK_PROVIDER,
-            "api_key": None,
-            "enabled": False
-        }
+        self.config = {"provider": MOCK_PROVIDER, "api_key": None, "enabled": False}
 
     def initialize(self, api_key=None, provider=None, base_url=None, model=None):
         if api_key:
@@ -173,7 +170,7 @@ class TestMatrixTabAIStatus:
         manager.set_connected(False)
         try:
             settings_tab = mock_page.session.get("settings_tab")
-            if settings_tab and hasattr(settings_tab, '_update_ai_status'):
+            if settings_tab and hasattr(settings_tab, "_update_ai_status"):
                 settings_tab._update_ai_status(force_check=False)
         except Exception:
             pass
@@ -216,6 +213,7 @@ class TestBrainstormAIStatus:
 
 class TestMainFlowAIStatus:
     """测试主流程的AI状态更新"""
+
     # test_app_initialization_ai_status 已删除 - 依赖于不存在的 src.ai.connectivity 模块
 
 
@@ -254,6 +252,7 @@ class TestEndToEndAIStatus:
 
 class TestSettingsTabAIStatus:
     """测试设置Tab的AI状态显示"""
+
     # test_update_ai_status_force_check 已删除 - 依赖于不存在的 src.ai.connectivity 模块
     # test_update_ai_status_force_check_failure 已删除 - 依赖于不存在的 src.ai.connectivity 模块
 

@@ -3,14 +3,15 @@
 提供40发明原理的浏览和详情查看
 """
 
-import flet as ft
 import logging
-from typing import Optional, Callable, List
+from collections.abc import Callable
 
-from ..app_shell import TabContent
-from ...config.constants import COLORS, PRINCIPLE_CATEGORIES, CATEGORY_COLORS
+import flet as ft
+
+from ...config.constants import CATEGORY_COLORS, COLORS, PRINCIPLE_CATEGORIES
 from ...core.principle_service import get_principle_service
 from ...data.models import InventivePrinciple
+from ..app_shell import TabContent
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class PrinciplesTab(TabContent):
     """发明原理Tab"""
 
-    def __init__(self, page: ft.Page, on_principle_detail: Optional[Callable] = None):
+    def __init__(self, page: ft.Page, on_principle_detail: Callable | None = None):
         """
         初始化发明原理Tab
 
@@ -33,16 +34,16 @@ class PrinciplesTab(TabContent):
         # 状态
         self.selected_category = "全部"
         self.search_query = ""
-        self._filtered_principles: List[InventivePrinciple] = []
+        self._filtered_principles: list[InventivePrinciple] = []
 
         # UI组件引用
-        self.principles_grid: Optional[ft.GridView] = None
-        self.category_chips: Optional[ft.Row] = None
+        self.principles_grid: ft.GridView | None = None
+        self.category_chips: ft.Row | None = None
         self._ui_built: bool = False  # UI是否已构建
 
         super().__init__("principles")
 
-    def on_show(self):
+    def on_show(self) -> None:
         """当Tab显示时调用"""
         try:
             if not self._ui_built:
@@ -52,7 +53,7 @@ class PrinciplesTab(TabContent):
         except Exception as e:
             logger.error(f"PrinciplesTab on_show 错误: {e}", exc_info=True)
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         """构建UI"""
         self.controls.clear()
 
@@ -111,7 +112,7 @@ class PrinciplesTab(TabContent):
             [title, ft.Divider(), filter_section, ft.Divider(), self.principles_grid]
         )
 
-    def _on_category_selected(self, category: str):
+    def _on_category_selected(self, category: str) -> None:
         """分类选择"""
         self.selected_category = category
 
@@ -134,7 +135,7 @@ class PrinciplesTab(TabContent):
         self._apply_filters()
         self._page.update()
 
-    def _apply_filters(self):
+    def _apply_filters(self) -> None:
         """应用筛选"""
         all_principles = self._principle_service.get_all_principles()
 
@@ -158,7 +159,7 @@ class PrinciplesTab(TabContent):
         self._filtered_principles = filtered
         self._update_grid()
 
-    def _update_grid(self):
+    def _update_grid(self) -> None:
         """更新原理网格"""
         if not self.principles_grid:
             return
@@ -241,7 +242,7 @@ class PrinciplesTab(TabContent):
         """获取分类颜色"""
         return CATEGORY_COLORS.get(category, "#2196F3")
 
-    def _on_principle_click(self, principle: InventivePrinciple):
+    def _on_principle_click(self, principle: InventivePrinciple) -> None:
         """原理点击"""
         if self.on_principle_detail:
             self.on_principle_detail(principle)
@@ -249,7 +250,7 @@ class PrinciplesTab(TabContent):
             # 默认显示详情弹窗
             self._show_principle_detail_dialog(principle)
 
-    def _show_principle_detail_dialog(self, principle: InventivePrinciple):
+    def _show_principle_detail_dialog(self, principle: InventivePrinciple) -> None:
         """显示原理详情弹窗"""
         dialog = ft.AlertDialog(
             open=True,
@@ -395,6 +396,6 @@ class PrinciplesTab(TabContent):
 
         self._page.show_dialog(dialog)
 
-    def _close_dialog(self):
+    def _close_dialog(self) -> None:
         """关闭弹窗"""
         self._page.pop_dialog()

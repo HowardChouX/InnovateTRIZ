@@ -3,11 +3,12 @@
 测试查询发明原理的纯本地矩阵逻辑
 """
 
-import pytest
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.core.matrix_selector import get_matrix_manager
 from src.core.principle_service import get_principle_service
@@ -24,38 +25,26 @@ class TestMatrixQuery:
 
     def test_query_with_both_params(self):
         """测试使用改善和恶化参数查询"""
-        result = self.matrix.query_matrix(
-            improving="速度",
-            worsening="力"
-        )
+        result = self.matrix.query_matrix(improving="速度", worsening="力")
         assert result is not None
         assert len(result.principle_ids) > 0
         print(f"速度+力 查询结果: {result.principle_ids}")
 
     def test_query_with_single_improving_param(self):
         """测试只使用改善参数查询"""
-        result = self.matrix.query_matrix(
-            improving="速度",
-            worsening=None
-        )
+        result = self.matrix.query_matrix(improving="速度", worsening=None)
         assert result is not None
         print(f"仅速度查询结果: {result.principle_ids}")
 
     def test_query_with_single_worsening_param(self):
         """测试只使用恶化参数查询"""
-        result = self.matrix.query_matrix(
-            improving=None,
-            worsening="力"
-        )
+        result = self.matrix.query_matrix(improving=None, worsening="力")
         assert result is not None
         print(f"仅力查询结果: {result.principle_ids}")
 
     def test_query_with_no_params(self):
         """测试无参数查询（使用默认值）"""
-        result = self.matrix.query_matrix(
-            improving=None,
-            worsening=None
-        )
+        result = self.matrix.query_matrix(improving=None, worsening=None)
         assert result is not None
         print(f"无参数查询结果: {result.principle_ids}")
 
@@ -86,8 +75,7 @@ class TestMatrixQuery:
     def test_query_energy_weight(self):
         """测试能量vs重量典型矛盾"""
         result = self.matrix.query_matrix(
-            improving="运动物体的能量",
-            worsening="静止物体的重量"
+            improving="运动物体的能量", worsening="静止物体的重量"
         )
         assert result is not None
         assert len(result.principle_ids) > 0
@@ -122,10 +110,7 @@ class TestMatrixQuery:
     def test_empty_result_for_invalid_combination(self):
         """测试无效参数组合返回空结果"""
         # 尝试一个不太可能产生结果的组合
-        result = self.matrix.query_matrix(
-            improving="形状",
-            worsening="温度"
-        )
+        result = self.matrix.query_matrix(improving="形状", worsening="温度")
         # 形状vs温度可能有结果也可能没有，这是有效的查询
         assert result is not None
         print(f"形状+温度查询: {result.principle_ids}")
@@ -141,10 +126,7 @@ class TestMatrixQueryIndependence:
     def test_query_does_not_require_ai(self):
         """测试查询不依赖AI"""
         # 在没有AI配置的情况下也能查询
-        result = self.matrix.query_matrix(
-            improving="速度",
-            worsening="力"
-        )
+        result = self.matrix.query_matrix(improving="速度", worsening="力")
         assert result is not None
         assert len(result.principle_ids) > 0
         print("矩阵查询不依赖AI")

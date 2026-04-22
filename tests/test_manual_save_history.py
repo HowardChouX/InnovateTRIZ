@@ -3,9 +3,9 @@
 
 测试头脑风暴结果手动保存到历史记录的流程
 """
+
 import asyncio
-import pytest
-from unittest.mock import MagicMock, patch
+
 from src.core.triz_engine import get_triz_engine
 from src.data.local_storage import LocalStorage
 from src.data.models import AnalysisSession, Solution
@@ -28,12 +28,14 @@ class TestManualSaveHistory:
         engine = get_triz_engine()
 
         # 执行本地分析（模拟矩阵查询）
-        session = run_sync(engine.analyze_problem(
-            problem="测试问题",
-            improving_param="速度",
-            worsening_param="重量",
-            use_ai=False
-        ))
+        session = run_sync(
+            engine.analyze_problem(
+                problem="测试问题",
+                improving_param="速度",
+                worsening_param="重量",
+                use_ai=False,
+            )
+        )
 
         # 验证会话创建成功
         assert session is not None
@@ -62,7 +64,7 @@ class TestManualSaveHistory:
                     category="物理",
                     examples=["模块化手机电池"],
                     is_ai_generated=True,
-                    confidence=0.9
+                    confidence=0.9,
                 ),
                 Solution(
                     principle_id=15,
@@ -71,9 +73,9 @@ class TestManualSaveHistory:
                     category="物理",
                     examples=["可折叠电池设计"],
                     is_ai_generated=True,
-                    confidence=0.85
-                )
-            ]
+                    confidence=0.85,
+                ),
+            ],
         )
 
         # 手动保存
@@ -97,7 +99,7 @@ class TestManualSaveHistory:
             improving_param="速度",
             worsening_param="能耗",
             ai_enabled=True,
-            solutions=[]
+            solutions=[],
         )
 
         # 创建本地会话
@@ -107,7 +109,7 @@ class TestManualSaveHistory:
             improving_param="强度",
             worsening_param="重量",
             ai_enabled=False,
-            solutions=[]
+            solutions=[],
         )
 
         # 保存两个会话
@@ -121,10 +123,14 @@ class TestManualSaveHistory:
         assert len(summaries) == 2
 
         # 验证AI标记
-        ai_summary = next(s for s in summaries if "AI测试" in s.get("problem_preview", ""))
+        ai_summary = next(
+            s for s in summaries if "AI测试" in s.get("problem_preview", "")
+        )
         assert ai_summary.get("ai_enabled") is True
 
-        local_summary = next(s for s in summaries if "本地测试" in s.get("problem_preview", ""))
+        local_summary = next(
+            s for s in summaries if "本地测试" in s.get("problem_preview", "")
+        )
         assert local_summary.get("ai_enabled") is False
 
     def test_save_button_on_solution_card(self):
@@ -141,9 +147,9 @@ class TestManualSaveHistory:
                     description="合并同类物体",
                     category="几何",
                     is_ai_generated=True,
-                    confidence=0.8
+                    confidence=0.8,
                 )
-            ]
+            ],
         )
 
         # 模拟MatrixTab的保存逻辑
@@ -168,9 +174,9 @@ class TestManualSaveHistory:
                         description=f"测试描述{i}",
                         category="物理",
                         is_ai_generated=True,
-                        confidence=0.8
+                        confidence=0.8,
                     )
-                ]
+                ],
             )
             self.storage.save_session(session)
 
@@ -202,9 +208,9 @@ class TestSaveToHistoryFlow:
                     principle_name="分割",
                     description="测试",
                     category="物理",
-                    is_ai_generated=True
+                    is_ai_generated=True,
                 )
-            ]
+            ],
         )
 
         saved = self.storage.save_session(session)
@@ -216,10 +222,7 @@ class TestSaveToHistoryFlow:
     def test_empty_solutions_session_saves(self):
         """测试没有解决方案的会话可以保存"""
         session = AnalysisSession(
-            problem="测试空方案",
-            matrix_type="39",
-            ai_enabled=False,
-            solutions=[]
+            problem="测试空方案", matrix_type="39", ai_enabled=False, solutions=[]
         )
 
         saved = self.storage.save_session(session)
@@ -239,7 +242,7 @@ class TestSaveToHistoryFlow:
                 category="物理",
                 examples=["抽出噪音部分", "抽出热量部分"],
                 is_ai_generated=True,
-                confidence=0.92
+                confidence=0.92,
             )
         ]
 
@@ -247,7 +250,7 @@ class TestSaveToHistoryFlow:
             problem="保留详情测试",
             matrix_type="39",
             ai_enabled=True,
-            solutions=solutions
+            solutions=solutions,
         )
 
         self.storage.save_session(session)

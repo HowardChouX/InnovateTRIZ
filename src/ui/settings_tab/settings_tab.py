@@ -3,16 +3,18 @@
 提供全局应用设置和管理功能
 """
 
-import flet as ft
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Any
 
-from ..app_shell import TabContent
+import flet as ft
+
 from ...config.constants import COLORS
 from ...data.local_storage import LocalStorage
 from ...data.models import AnalysisSession
+from ..app_shell import TabContent
 
 if TYPE_CHECKING:
     from ..ai_settings_dialog import AISettingsDialog
@@ -27,7 +29,7 @@ class SettingsTab(TabContent):
         self,
         page: ft.Page,
         storage: LocalStorage,
-        on_view_detail: Optional[Callable] = None,
+        on_view_detail: Callable | None = None,
     ):
         """
         初始化设置Tab
@@ -47,22 +49,22 @@ class SettingsTab(TabContent):
         self._has_more = True
 
         # 选中状态
-        self._selected_histories: set = set()
+        self._selected_histories: set[str] = set()
 
         # UI组件引用
-        self.history_list: Optional[ft.ListView] = None
-        self.load_more_btn: Optional[ft.Button] = None
-        self.empty_msg: Optional[ft.Container] = None
-        self.delete_btn: Optional[ft.Button] = None
-        self.select_all_cb: Optional[ft.Checkbox] = None
-        self._ai_settings_dialog: Optional["AISettingsDialog"] = None
+        self.history_list: ft.ListView | None = None
+        self.load_more_btn: ft.Button | None = None
+        self.empty_msg: ft.Container | None = None
+        self.delete_btn: ft.Button | None = None
+        self.select_all_cb: ft.Checkbox | None = None
+        self._ai_settings_dialog: AISettingsDialog | None = None
         # 动态文本引用
-        self._delete_btn_text: Optional[ft.Text] = None
-        self._load_more_btn_text: Optional[ft.Text] = None
+        self._delete_btn_text: ft.Text | None = None
+        self._load_more_btn_text: ft.Text | None = None
 
         super().__init__("settings")
 
-    def on_show(self):
+    def on_show(self) -> None:
         """当Tab显示时调用"""
         try:
             logger.info("SettingsTab on_show 被调用")
@@ -75,14 +77,14 @@ class SettingsTab(TabContent):
         except Exception as e:
             logger.error(f"SettingsTab on_show error: {e}", exc_info=True)
 
-    def _reset_and_load(self):
+    def _reset_and_load(self) -> None:
         """重置并加载"""
         self._offset = 0
         self._has_more = True
         self._build_ui()
         self._load_history()
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         """构建UI"""
         self.controls.clear()
         self._selected_histories.clear()
@@ -117,7 +119,7 @@ class SettingsTab(TabContent):
         )
 
         # 全选复选框 - 在history_list创建后定义回调
-        def on_select_all_changed(e):
+        def on_select_all_changed(e: ft.ControlEvent) -> None:
             if e.control.value and self.history_list:
                 for ctrl in self.history_list.controls:
                     if hasattr(ctrl, "key") and ctrl.key:
@@ -126,10 +128,10 @@ class SettingsTab(TabContent):
                 self._selected_histories.clear()
             self._update_delete_button()
 
-        def close_dlg(_):
+        def close_dlg(_: ft.ControlEvent) -> None:
             self._page.pop_dialog()
 
-        def confirm_delete(_):
+        def confirm_delete(_: ft.ControlEvent) -> None:
             for session_id in list(self._selected_histories):
                 self.storage.delete_session(session_id)
             self._show_snack_bar(f"已删除 {len(self._selected_histories)} 条记录")
@@ -139,7 +141,7 @@ class SettingsTab(TabContent):
             self._load_history()
             self._page.pop_dialog()
 
-        def on_delete_click():
+        def on_delete_click() -> None:
             if not self._selected_histories:
                 self._show_snack_bar("请先选择要删除的记录")
                 return
@@ -255,7 +257,7 @@ class SettingsTab(TabContent):
             ]
         )
 
-    def _update_delete_button(self):
+    def _update_delete_button(self) -> None:
         """更新删除按钮状态"""
         if self._delete_btn_text and self.delete_btn:
             count = len(self._selected_histories)
@@ -297,7 +299,7 @@ class SettingsTab(TabContent):
             elevation=1,
         )
 
-    def _show_snack_bar(self, message: str, _duration: int = 3000):
+    def _show_snack_bar(self, message: str, _duration: int = 3000) -> None:
         """显示弹窗提示消息"""
         dlg = ft.AlertDialog(
             modal=True,
@@ -306,7 +308,7 @@ class SettingsTab(TabContent):
         )
         self._page.show_dialog(dlg)
 
-    def _show_ai_settings(self, _: Optional[ft.ControlEvent] = None):
+    def _show_ai_settings(self, _: ft.ControlEvent | None = None) -> None:
         """显示AI设置对话框"""
         logger.info("_show_ai_settings 被调用")
         if self._ai_settings_dialog is None:
@@ -315,21 +317,22 @@ class SettingsTab(TabContent):
             self._ai_settings_dialog = AISettingsDialog(self._page)
         self._ai_settings_dialog.show()
 
-    def _show_log_viewer(self, _: Optional[ft.ControlEvent] = None):
+    def _show_log_viewer(self, _: ft.ControlEvent | None = None) -> None:
         """显示日志查看器"""
         import os
         from pathlib import Path
 
-        # Android 环境检测
+        # Android 环境检测（Flet官方推荐方式）
         def _is_android_env() -> bool:
             import sys
+
+            if os.getenv("FLET_PLATFORM") == "android":
+                return True
             if sys.platform == "android":
                 return True
             if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
                 return True
             if "ANDROID_DATA" in os.environ:
-                return True
-            if os.getenv("FLET_APP_STORAGE_DATA"):
                 return True
             return False
 
@@ -342,7 +345,9 @@ class SettingsTab(TabContent):
             log_file = Path(".") / ".triz_logs" / "triz_app.log"
         else:
             # 桌面环境
-            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(
+                Path.home(), ".config"
+            )
             log_file = Path(config_home) / "triz-assistant" / "logs" / "triz_app.log"
 
         # 安全验证：解析并验证日志路径
@@ -362,7 +367,7 @@ class SettingsTab(TabContent):
                         # 从末尾开始，查找最后100行
                         pos = file_size
                         lines_found = 0
-                        lines = []
+                        lines: list[str] = []
                         chunk_size = 8192
                         while pos > 0 and lines_found < 100:
                             read_size = min(chunk_size, pos)
@@ -437,7 +442,7 @@ class SettingsTab(TabContent):
 
         self._page.show_dialog(dialog)
 
-    def _export_sessions(self, format: str):
+    def _export_sessions(self, format: str) -> None:
         """导出会话"""
         content = self.storage.export_all_sessions(format)
         if not content:
@@ -455,7 +460,9 @@ class SettingsTab(TabContent):
             exports_dir = os.path.join(app_data_path, "exports")
         else:
             # Fallback: 使用 XDG_CONFIG_HOME
-            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(Path.home(), ".config")
+            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(
+                Path.home(), ".config"
+            )
             exports_dir = os.path.join(config_home, "triz-assistant", "exports")
 
         # 安全验证：使用 resolve() 和目录相等性检查防止路径遍历
@@ -487,10 +494,10 @@ class SettingsTab(TabContent):
             logger.error(f"导出失败: {ex}")
             self._show_snack_bar("导出失败")
 
-    def _confirm_clear_all(self, _: Optional[ft.ControlEvent] = None):
+    def _confirm_clear_all(self, _: ft.ControlEvent | None = None) -> None:
         """确认清空所有历史"""
 
-        def handle_confirm(confirmed: bool):
+        def handle_confirm(confirmed: bool) -> None:
             if confirmed:
                 self._do_clear_all()
 
@@ -509,14 +516,14 @@ class SettingsTab(TabContent):
         )
         self._page.show_dialog(dialog)
 
-    def _do_clear_all(self):
+    def _do_clear_all(self) -> None:
         """执行清空所有历史"""
         count = self.storage.delete_all_sessions()
         self._close_dialog()
         self._reset_and_load()
         self._show_snack_bar(f"已删除 {count} 条历史记录")
 
-    def _load_history(self):
+    def _load_history(self) -> None:
         """加载历史记录"""
         # 确保UI已构建
         if (
@@ -567,7 +574,7 @@ class SettingsTab(TabContent):
 
         self._page.update()
 
-    def _on_load_more(self, _: Optional[ft.ControlEvent] = None):
+    def _on_load_more(self, _: ft.ControlEvent | None = None) -> None:
         """加载更多"""
         if not self._has_more or not self._load_more_btn_text or not self.load_more_btn:
             return
@@ -594,7 +601,7 @@ class SettingsTab(TabContent):
         status_text = "AI" if ai_enabled else "本地"
 
         # 复选框切换选中状态
-        def on_checkbox_changed(_):
+        def on_checkbox_changed(_: ft.ControlEvent) -> None:
             if session_id in self._selected_histories:
                 self._selected_histories.discard(session_id)
             else:
@@ -707,7 +714,7 @@ class SettingsTab(TabContent):
             elevation=2,
         )
 
-    def _on_view_detail(self, summary: dict):
+    def _on_view_detail(self, summary: dict[str, Any]) -> None:
         """查看详情"""
         if self.on_view_detail:
             self.on_view_detail(summary)
@@ -722,7 +729,7 @@ class SettingsTab(TabContent):
             else:
                 self._show_snack_bar("会话ID无效")
 
-    def _show_session_detail(self, session: AnalysisSession):
+    def _show_session_detail(self, session: AnalysisSession) -> None:
         """显示会话详情（卡片形式）"""
         # 头部信息
         header = ft.Container(
@@ -889,6 +896,6 @@ class SettingsTab(TabContent):
 
         self._page.show_dialog(dialog)
 
-    def _close_dialog(self):
+    def _close_dialog(self) -> None:
         """关闭弹窗"""
         self._page.pop_dialog()

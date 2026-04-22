@@ -2,9 +2,11 @@
 AI设置对话框
 """
 
-import flet as ft
 import logging
-from typing import Any, Optional
+from collections.abc import Callable
+from typing import Any
+
+import flet as ft
 
 from ..config.constants import COLORS
 
@@ -14,7 +16,11 @@ logger = logging.getLogger(__name__)
 class AISettingsDialog:
     """AI设置对话框"""
 
-    def __init__(self, page: ft.Page, on_settings_changed=None):
+    def __init__(
+        self,
+        page: ft.Page,
+        on_settings_changed: Callable | None = None,
+    ) -> None:
         self.page = page
         self.on_settings_changed = on_settings_changed
 
@@ -27,16 +33,16 @@ class AISettingsDialog:
         }
 
         # UI组件
-        self.dialog: Optional[ft.AlertDialog] = None
-        self.providerDropdown: Optional[ft.Dropdown] = None
-        self.apiKeyField: Optional[ft.TextField] = None
-        self.baseUrlField: Optional[ft.TextField] = None
-        self.modelField: Optional[ft.TextField] = None
-        self.testConnectionBtn: Optional[ft.Button] = None
-        self.connectionStatusText: Optional[ft.Text] = None
-        self.testLoading: Optional[ft.ProgressRing] = None
+        self.dialog: ft.AlertDialog | None = None
+        self.providerDropdown: ft.Dropdown | None = None
+        self.apiKeyField: ft.TextField | None = None
+        self.baseUrlField: ft.TextField | None = None
+        self.modelField: ft.TextField | None = None
+        self.testConnectionBtn: ft.Button | None = None
+        self.connectionStatusText: ft.Text | None = None
+        self.testLoading: ft.ProgressRing | None = None
 
-    def _show_snack_bar(self, message: str):
+    def _show_snack_bar(self, message: str) -> None:
         """显示提示消息（使用 AlertDialog 模拟 SnackBar）"""
         dlg = ft.AlertDialog(
             modal=False,
@@ -46,7 +52,7 @@ class AISettingsDialog:
         # 使用 run_task 自动关闭对话框
         self.page.run_task(self._auto_close_dialog, dlg)
 
-    async def _auto_close_dialog(self, dlg: ft.AlertDialog):
+    async def _auto_close_dialog(self, dlg: ft.AlertDialog) -> None:
         """自动关闭对话框"""
         import asyncio
 
@@ -54,7 +60,7 @@ class AISettingsDialog:
         dlg.open = False
         self.page.update()
 
-    def show(self):
+    def show(self) -> None:
         """显示设置对话框"""
         logger.info("AISettingsDialog.show() 被调用")
         if self.dialog is None:
@@ -65,10 +71,9 @@ class AISettingsDialog:
         assert self.dialog is not None
         self.page.show_dialog(self.dialog)
 
-    def _load_current_settings(self):
+    def _load_current_settings(self) -> None:
         """加载当前设置（在打开对话框时调用，解密所有供应商密钥到内存字典）"""
-        from src.config.settings import get_app_settings
-        from src.config.settings import _simple_decrypt
+        from src.config.settings import _simple_decrypt, get_app_settings
 
         # AppSettings 是单例
         settings = get_app_settings()
@@ -127,7 +132,7 @@ class AISettingsDialog:
         if self.modelField is not None:
             self.modelField.value = self.settings["model"]
 
-    def _create_dialog(self):
+    def _create_dialog(self) -> None:
         """创建对话框"""
         self.providerDropdown = ft.Dropdown(
             label="AI提供商",
@@ -213,7 +218,7 @@ class AISettingsDialog:
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
-    def _on_provider_changed(self, e: ft.Event[ft.Dropdown]):
+    def _on_provider_changed(self, e: ft.Event[ft.Dropdown]) -> None:
         """提供商变更"""
         assert self.baseUrlField is not None and self.modelField is not None
         provider = e.control.value if e.control.value else "deepseek"
@@ -238,11 +243,11 @@ class AISettingsDialog:
                 self.modelField.value = "gpt-4"
         self.page.update()
 
-    def _on_cancel(self, _: ft.Event[ft.TextButton]):
+    def _on_cancel(self, _: ft.Event[ft.TextButton]) -> None:
         """取消"""
         self.page.pop_dialog()
 
-    def _on_save(self, _: ft.Event[ft.TextButton]):
+    def _on_save(self, _: ft.Event[ft.TextButton]) -> None:
         """保存设置"""
         assert self.providerDropdown is not None and self.apiKeyField is not None
         assert self.baseUrlField is not None and self.modelField is not None
@@ -265,10 +270,10 @@ class AISettingsDialog:
 
     async def _save_settings_async(
         self, api_key: str, provider: str, base_url: str, model: str
-    ):
+    ) -> None:
         """异步保存设置"""
-        from src.config.settings import get_app_settings
         from src.ai.ai_client import get_ai_manager
+        from src.config.settings import get_app_settings
         from src.data.models import ProviderConfig
 
         try:
@@ -303,7 +308,7 @@ class AISettingsDialog:
         except Exception as ex:
             logger.error(f"保存AI设置失败: {ex}")
 
-    def _on_test_connection(self, _: ft.Event[ft.Button]):
+    def _on_test_connection(self, _: ft.Event[ft.Button]) -> None:
         """手动测试AI连接"""
         assert self.apiKeyField is not None and self.baseUrlField is not None
         assert self.modelField is not None and self.providerDropdown is not None
@@ -337,9 +342,10 @@ class AISettingsDialog:
 
     async def _test_connection_async(
         self, api_key: str, provider: str, base_url: str, model: str
-    ):
+    ) -> None:
         """异步测试AI连接"""
         import time
+
         from src.ai.ai_client import get_ai_manager
 
         assert (
@@ -361,7 +367,7 @@ class AISettingsDialog:
             client = ai_manager.get_client()
             if client:
                 # 发送一个简单的 chat completion 请求测试连接
-                from openai import AsyncOpenAI
+                from openai import AsyncOpenAI  # type: ignore[import-not-found]
 
                 test_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
                 await test_client.chat.completions.create(
@@ -395,7 +401,7 @@ class AISettingsDialog:
             elif "connection" in error_msg.lower():
                 self.connectionStatusText.value = "连接失败: 请检查网络"
             else:
-                self.connectionStatusText.value = f"连接失败"
+                self.connectionStatusText.value = "连接失败"
             self.connectionStatusText.color = ft.Colors.RED
             logger.error(f"AI连接测试失败: {ex}")
         finally:

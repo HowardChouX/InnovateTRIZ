@@ -3,16 +3,18 @@
 提供39矛盾矩阵分析的主界面
 """
 
-import flet as ft
 import logging
-from typing import Optional, Callable, List
+from collections.abc import Callable
+from typing import Any
 
-from ..app_shell import TabContent
+import flet as ft
+
 from ...config.constants import COLORS
-from ...data.models import AnalysisSession, Solution
-from ...data.local_storage import LocalStorage
 from ...core.matrix_selector import get_matrix_manager
 from ...core.principle_service import get_principle_service
+from ...data.local_storage import LocalStorage
+from ...data.models import AnalysisSession, Solution
+from ..app_shell import TabContent
 from ..parameter_ui import ParameterPicker
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,12 @@ logger = logging.getLogger(__name__)
 class MatrixTab(TabContent):
     """矛盾矩阵Tab"""
 
-    def __init__(self, page: ft.Page, storage: LocalStorage, on_navigate_to_principle: Optional[Callable] = None):
+    def __init__(
+        self,
+        page: ft.Page,
+        storage: LocalStorage,
+        on_navigate_to_principle: Callable | None = None,
+    ):
         """
         初始化矛盾矩阵Tab
 
@@ -38,51 +45,56 @@ class MatrixTab(TabContent):
 
         # 订阅AI状态变化
         from ..state import get_ai_state_manager
+
         ai_state = get_ai_state_manager()
         ai_state.subscribe(self._on_ai_state_changed)
 
         # 状态
         self.ai_enabled = False
-        self.improving_params: List[str] = []
-        self.worsening_params: List[str] = []
+        self.improving_params: list[str] = []
+        self.worsening_params: list[str] = []
         self.solution_count = 5
         self.problem_text = ""
 
         # UI组件引用
-        self.problem_input: Optional[ft.TextField] = None
-        self.improving_btn: Optional[ft.Button] = None
-        self.worsening_btn: Optional[ft.Button] = None
-        self.improving_text: Optional[ft.Text] = None
-        self.worsening_text: Optional[ft.Text] = None
-        self.analyze_btn: Optional[ft.Button] = None
-        self.loading_indicator: Optional[ft.ProgressBar] = None
-        self.result_container: Optional[ft.Container] = None
+        self.problem_input: ft.TextField | None = None
+        self.improving_btn: ft.Button | None = None
+        self.worsening_btn: ft.Button | None = None
+        self.improving_text: ft.Text | None = None
+        self.worsening_text: ft.Text | None = None
+        self.analyze_btn: ft.Button | None = None
+        self.loading_indicator: ft.ProgressBar | None = None
+        self.result_container: ft.Container | None = None
         self.brainstorm_loading: ft.Container
-        self.ai_analysis_result_container: Optional[ft.Container] = None
+        self.ai_analysis_result_container: ft.Container | None = None
 
         # 当前会话
-        self._current_matrix_session: Optional[AnalysisSession] = None
-        self._current_brainstorm_session: Optional[AnalysisSession] = None
+        self._current_matrix_session: AnalysisSession | None = None
+        self._current_brainstorm_session: AnalysisSession | None = None
         # 矩阵查询的原理数据（用于同步到头脑风暴）
-        self._current_matrix_principles: List = []
+        self._current_matrix_principles: list = []
 
         # 选中的解决方案（用于批量保存）
-        self._selected_solutions: List[int] = []  # 存储选中的 solution index
+        self._selected_solutions: list[int] = []  # 存储选中的 solution index
+
+        # Overlay弹窗引用
+        self._solutions_overlay: ft.Container | None = None
+        self._detail_overlay: ft.Container | None = None
 
         super().__init__("matrix")
 
-    def _show_snack_bar(self, message: str, duration: int = 3000):  # noqa: ARG002
+    def _show_snack_bar(
+        self, message: str, duration: int = 3000
+    ) -> None:  # noqa: ARG002
         """显示弹窗提示消息"""
         dlg = ft.AlertDialog(
             modal=True,
             content=ft.Text(message),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self._page.pop_dialog())
-            ]
+            actions=[ft.TextButton("确定", on_click=lambda _: self._page.pop_dialog())],
         )
-        self._page.show_dialog(dlg)  # type: ignore
+        self._page.show_dialog(dlg)
 
-    def on_show(self):
+    def on_show(self) -> None:
         """当Tab显示时调用"""
         try:
             # 只在首次显示时构建UI
@@ -93,9 +105,10 @@ class MatrixTab(TabContent):
         except Exception as e:
             logger.error(f"MatrixTab on_show error: {e}", exc_info=True)
 
-    def _mark_ai_disconnected(self):
+    def _mark_ai_disconnected(self) -> None:
         """标记AI为未连接状态，并通知AI状态变化"""
         from src.ai.ai_client import get_ai_manager
+
         from ..state import get_ai_state_manager
 
         ai_manager = get_ai_manager()
@@ -105,17 +118,20 @@ class MatrixTab(TabContent):
         ai_state = get_ai_state_manager()
         ai_state.update_status(ai_manager.is_enabled(), False)
 
-    def _on_ai_state_changed(self, is_enabled: bool, is_connected: bool):
+    def _on_ai_state_changed(self, is_enabled: bool, is_connected: bool) -> None:
         """AI状态变化回调"""
-        logger.info(f"MatrixTab收到AI状态变化: enabled={is_enabled}, connected={is_connected}")
+        logger.info(
+            f"MatrixTab收到AI状态变化: enabled={is_enabled}, connected={is_connected}"
+        )
         try:
             self._update_ai_buttons()
         except Exception as e:
             logger.error(f"_on_ai_state_changed error: {e}", exc_info=True)
 
-    def _update_ai_buttons(self):
+    def _update_ai_buttons(self) -> None:
         """根据AI连接状态启用/禁用AI相关按钮"""
         from src.ai.ai_client import get_ai_manager
+
         ai_manager = get_ai_manager()
         # 使用实际连接状态，而非仅配置状态
         is_ai_connected = ai_manager.is_enabled() and ai_manager.is_connected()
@@ -125,7 +141,7 @@ class MatrixTab(TabContent):
         if self.brainstorm_btn:
             self.brainstorm_btn.disabled = not is_ai_connected
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         """构建UI"""
         self.controls.clear()
 
@@ -134,18 +150,16 @@ class MatrixTab(TabContent):
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.icons.Icons.GRID_ON, color=COLORS["primary"], size=28),
-                    ft.Text("39矛盾矩阵分析", size=20, weight=ft.FontWeight.BOLD)
+                    ft.Text("39矛盾矩阵分析", size=20, weight=ft.FontWeight.BOLD),
                 ],
-                alignment=ft.MainAxisAlignment.START
+                alignment=ft.MainAxisAlignment.START,
             ),
-            padding=15
+            padding=15,
         )
 
         # AI分析结果展示区域（必须在problem_section之前创建）
         self.ai_analysis_result_container = ft.Container(
-            content=ft.Column(scroll=ft.ScrollMode.AUTO),
-            padding=10,
-            visible=False
+            content=ft.Column(scroll=ft.ScrollMode.AUTO), padding=10, visible=False
         )
 
         # 问题输入区
@@ -157,18 +171,15 @@ class MatrixTab(TabContent):
             max_lines=5,
             border_color=COLORS["primary"],
             expand=True,
-            on_change=self._on_problem_changed
+            on_change=self._on_problem_changed,
         )
 
         self.analyze_params_btn = ft.Button(
             content=ft.Text(" AI分析参数"),
             icon=ft.icons.Icons.AUTO_AWESOME,
             on_click=self._on_ai_analyze_params,
-            style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=COLORS["primary"]
-            ),
-            scale=0.9
+            style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=COLORS["primary"]),
+            scale=0.9,
         )
 
         self.ai_analyze_loading = ft.ProgressBar(visible=False, width=150)
@@ -181,7 +192,7 @@ class MatrixTab(TabContent):
             icon=ft.icons.Icons.TRENDING_UP,
             on_click=lambda e: self._show_param_picker("improving"),
             style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=COLORS["primary"]),
-            scale=0.85
+            scale=0.85,
         )
 
         self.worsening_btn = ft.Button(
@@ -189,7 +200,7 @@ class MatrixTab(TabContent):
             icon=ft.icons.Icons.TRENDING_DOWN,
             on_click=lambda e: self._show_param_picker("worsening"),
             style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=COLORS["secondary"]),
-            scale=0.85
+            scale=0.85,
         )
 
         problem_section = ft.Container(
@@ -199,11 +210,8 @@ class MatrixTab(TabContent):
                     ft.Container(content=self.problem_input, expand=True),
                     ft.Container(height=5),
                     ft.Row(
-                        controls=[
-                            self.analyze_params_btn,
-                            self.ai_analyze_loading
-                        ],
-                        spacing=10
+                        controls=[self.analyze_params_btn, self.ai_analyze_loading],
+                        spacing=10,
                     ),
                     # AI分析结果展示（在AI分析参数按钮下方）
                     ft.Container(height=5),
@@ -216,35 +224,35 @@ class MatrixTab(TabContent):
                             ft.Row(
                                 controls=[
                                     ft.Text("改善:", width=50, size=12),
-                                    self.improving_btn
+                                    self.improving_btn,
                                 ],
                                 spacing=5,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                             ft.Container(
                                 content=self.improving_text,
-                                padding=ft.Padding.only(left=50)
+                                padding=ft.Padding.only(left=50),
                             ),
                             ft.Container(height=5),
                             ft.Row(
                                 controls=[
                                     ft.Text("恶化:", width=50, size=12),
-                                    self.worsening_btn
+                                    self.worsening_btn,
                                 ],
                                 spacing=5,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
                             ft.Container(
                                 content=self.worsening_text,
-                                padding=ft.Padding.only(left=50)
-                            )
+                                padding=ft.Padding.only(left=50),
+                            ),
                         ],
-                        spacing=3
-                    )
+                        spacing=3,
+                    ),
                 ],
-                spacing=8
+                spacing=8,
             ),
-            padding=15
+            padding=15,
         )
 
         # 分析按钮
@@ -253,11 +261,9 @@ class MatrixTab(TabContent):
             icon=ft.icons.Icons.SEARCH,
             on_click=self._on_analyze,
             style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=COLORS["primary"],
-                padding=10
+                color=ft.Colors.WHITE, bgcolor=COLORS["primary"], padding=10
             ),
-            scale=0.95
+            scale=0.95,
         )
 
         # 头脑风暴按钮
@@ -266,11 +272,9 @@ class MatrixTab(TabContent):
             icon=ft.icons.Icons.LIGHTBULB,
             on_click=self._on_brainstorm,
             style=ft.ButtonStyle(
-                color=ft.Colors.WHITE,
-                bgcolor=COLORS["secondary"],
-                padding=10
+                color=ft.Colors.WHITE, bgcolor=COLORS["secondary"], padding=10
             ),
-            scale=0.95
+            scale=0.95,
         )
 
         self.loading_indicator = ft.ProgressBar(visible=False, width=200)
@@ -280,95 +284,107 @@ class MatrixTab(TabContent):
                 controls=[
                     ft.Container(content=self.analyze_btn, expand=True),
                     ft.Container(width=10),
-                    ft.Container(content=self.brainstorm_btn, expand=True)
+                    ft.Container(content=self.brainstorm_btn, expand=True),
                 ],
-                alignment=ft.MainAxisAlignment.CENTER
+                alignment=ft.MainAxisAlignment.CENTER,
             ),
-            padding=15
+            padding=15,
         )
 
         # 结果区域 - 左栏（矩阵查询）右栏（头脑风暴）
         self.matrix_result_container = ft.Container(
-            content=ft.Column(scroll=ft.ScrollMode.AUTO),
-            padding=5,
-            height=300
+            content=ft.Column(scroll=ft.ScrollMode.AUTO), padding=5, height=300
         )
 
         # 头脑风暴加载指示器（嵌入到结果区域）
-        self.brainstorm_progress_text = ft.Text("准备开始...", size=12, color=ft.Colors.GREY_600)
+        self.brainstorm_progress_text = ft.Text(
+            "准备开始...", size=12, color=ft.Colors.GREY_600
+        )
         self.brainstorm_loading = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.ProgressRing(width=40, height=40),
                     ft.Container(height=10),
                     ft.Text("AI正在思考...", size=14, color=ft.Colors.GREY),
-                    ft.Text("正在基于TRIZ原理生成创新解决方案...", size=12, color=ft.Colors.GREY_600),
+                    ft.Text(
+                        "正在基于TRIZ原理生成创新解决方案...",
+                        size=12,
+                        color=ft.Colors.GREY_600,
+                    ),
                     ft.Container(height=5),
-                    self.brainstorm_progress_text
+                    self.brainstorm_progress_text,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=5
+                spacing=5,
             ),
             visible=False,
-            padding=20
+            padding=20,
         )
 
         self.brainstorm_result_container = ft.Container(
-            content=ft.Column(scroll=ft.ScrollMode.AUTO),
-            padding=5,
-            height=300
+            content=ft.Column(scroll=ft.ScrollMode.AUTO), padding=5, height=300
         )
 
         # 组合
-        self.controls.extend([
-            title,
-            ft.Divider(),
-            problem_section,
-            ft.Divider(),
-            button_section,
-            ft.Divider(),
-            # 左右分栏显示结果
-            ft.Row(
-                controls=[
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Text(" 矩阵查询结果", size=14, weight=ft.FontWeight.BOLD),
-                                ft.Container(height=5),
-                                self.matrix_result_container
-                            ],
-                            spacing=5
+        self.controls.extend(
+            [
+                title,
+                ft.Divider(),
+                problem_section,
+                ft.Divider(),
+                button_section,
+                ft.Divider(),
+                # 左右分栏显示结果
+                ft.Row(
+                    controls=[
+                        ft.Container(
+                            content=ft.Column(
+                                controls=[
+                                    ft.Text(
+                                        " 矩阵查询结果",
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                    ft.Container(height=5),
+                                    self.matrix_result_container,
+                                ],
+                                spacing=5,
+                            ),
+                            expand=1,
+                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border_radius=10,
+                            padding=5,
                         ),
-                        expand=1,
-                        border=ft.border.all(1, ft.Colors.GREY_300),
-                        border_radius=10,
-                        padding=5
-                    ),
-                    ft.Container(width=10),
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Text(" AI头脑风暴", size=14, weight=ft.FontWeight.BOLD),
-                                ft.Container(height=5),
-                                self.brainstorm_result_container
-                            ],
-                            spacing=5
+                        ft.Container(width=10),
+                        ft.Container(
+                            content=ft.Column(
+                                controls=[
+                                    ft.Text(
+                                        " AI头脑风暴",
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                    ft.Container(height=5),
+                                    self.brainstorm_result_container,
+                                ],
+                                spacing=5,
+                            ),
+                            expand=1,
+                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border_radius=10,
+                            padding=5,
                         ),
-                        expand=1,
-                        border=ft.border.all(1, ft.Colors.GREY_300),
-                        border_radius=10,
-                        padding=5
-                    )
-                ],
-                spacing=10
-            )
-        ])
+                    ],
+                    spacing=10,
+                ),
+            ]
+        )
 
-    def _on_problem_changed(self, e: ft.Event):
+    def _on_problem_changed(self, e: ft.Event) -> None:
         """问题描述变化"""
         self.problem_text = e.control.value.strip()
 
-    async def _on_ai_analyze_params(self, e: ft.Event):
+    async def _on_ai_analyze_params(self, e: ft.Event) -> None:
         """AI分析参数按钮点击"""
         # Guard: ensure UI components are initialized
         if not self.improving_text or not self.worsening_text:
@@ -383,6 +399,7 @@ class MatrixTab(TabContent):
 
         # 检查AI是否可用
         from src.ai.ai_client import get_ai_manager
+
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
             self._show_snack_bar("请先在设置中配置AI")
@@ -449,42 +466,59 @@ class MatrixTab(TabContent):
             explanation = result.get("explanation", "")
 
             # 更新AI分析结果展示
-            self.ai_analysis_result_container.content = ft.Column(  # type: ignore
+            assert self.ai_analysis_result_container is not None
+            self.ai_analysis_result_container.content = ft.Column(
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(ft.icons.Icons.LIGHTBULB, color=COLORS["secondary"], size=20),
-                            ft.Text(" AI参数分析结果", size=14, weight=ft.FontWeight.BOLD, color=COLORS["secondary"])
+                            ft.Icon(
+                                ft.icons.Icons.LIGHTBULB,
+                                color=COLORS["secondary"],
+                                size=20,
+                            ),
+                            ft.Text(
+                                " AI参数分析结果",
+                                size=14,
+                                weight=ft.FontWeight.BOLD,
+                                color=COLORS["secondary"],
+                            ),
                         ],
-                        spacing=5
+                        spacing=5,
                     ),
                     ft.Container(height=5),
                     ft.Container(
                         content=ft.Text(
                             f"改善参数: {', '.join(improving) if improving else '未识别'}",
                             size=12,
-                            color=ft.Colors.GREEN if improving else ft.Colors.GREY
+                            color=ft.Colors.GREEN if improving else ft.Colors.GREY,
                         )
                     ),
                     ft.Container(
                         content=ft.Text(
                             f"恶化参数: {', '.join(worsening) if worsening else '未识别'}",
                             size=12,
-                            color=ft.Colors.ORANGE if worsening else ft.Colors.GREY
+                            color=ft.Colors.ORANGE if worsening else ft.Colors.GREY,
                         )
-                    )
-                ] + ([
-                    ft.Container(height=5),
-                    ft.Container(
-                        content=ft.Text(explanation, size=11, color=ft.Colors.GREY_600),
-                        padding=8,
-                        bgcolor=ft.Colors.GREY_100,
-                        border_radius=5
-                    )
-                ] if explanation else []),
-                spacing=3
+                    ),
+                ]
+                + (
+                    [
+                        ft.Container(height=5),
+                        ft.Container(
+                            content=ft.Text(
+                                explanation, size=11, color=ft.Colors.GREY_600
+                            ),
+                            padding=8,
+                            bgcolor=ft.Colors.GREY_100,
+                            border_radius=5,
+                        ),
+                    ]
+                    if explanation
+                    else []
+                ),
+                spacing=3,
             )
-            self.ai_analysis_result_container.visible = True  # type: ignore
+            self.ai_analysis_result_container.visible = True
 
         except Exception as ex:
             logger.error(f"AI参数分析失败: {ex}")
@@ -496,47 +530,57 @@ class MatrixTab(TabContent):
             self.analyze_params_btn.disabled = False
             self._page.update()
 
-    def _show_param_picker(self, param_type: str):
+    def _show_param_picker(self, param_type: str) -> None:
         """显示参数选择器"""
-        current = self.improving_params if param_type == "improving" else self.worsening_params
+        current = (
+            self.improving_params
+            if param_type == "improving"
+            else self.worsening_params
+        )
         picker = ParameterPicker(
             page=self._page,
             param_type=param_type,
             current_values=current,
             on_selected=self._on_param_selected,
-            multi_select=True
+            multi_select=True,
         )
         picker.show()
 
-    def _on_param_selected(self, param_type: str, param_values: Optional[List[str]]):
+    def _on_param_selected(
+        self, param_type: str, param_values: list[str] | None
+    ) -> None:
         """参数选中回调"""
+        assert self.improving_text is not None
+        assert self.worsening_text is not None
         if param_type == "improving":
             self.improving_params = param_values or []
             if self.improving_params:
                 display = ", ".join(self.improving_params[:2])
                 if len(self.improving_params) > 2:
                     display += f"...(+{len(self.improving_params)-2})"
-                self.improving_text.value = f"已选: {display}"  # type: ignore
-                self.improving_text.color = ft.Colors.GREEN  # type: ignore
+                self.improving_text.value = f"已选: {display}"
+                self.improving_text.color = ft.Colors.GREEN
             else:
-                self.improving_text.value = "未选择"  # type: ignore
-                self.improving_text.color = ft.Colors.GREY  # type: ignore
+                self.improving_text.value = "未选择"
+                self.improving_text.color = ft.Colors.GREY
         else:
             self.worsening_params = param_values or []
             if self.worsening_params:
                 display = ", ".join(self.worsening_params[:2])
                 if len(self.worsening_params) > 2:
                     display += f"...(+{len(self.worsening_params)-2})"
-                self.worsening_text.value = f"已选: {display}"  # type: ignore
-                self.worsening_text.color = ft.Colors.GREEN  # type: ignore
+                self.worsening_text.value = f"已选: {display}"
+                self.worsening_text.color = ft.Colors.GREEN
             else:
-                self.worsening_text.value = "未选择"  # type: ignore
-                self.worsening_text.color = ft.Colors.GREY  # type: ignore
+                self.worsening_text.value = "未选择"
+                self.worsening_text.color = ft.Colors.GREY
 
         self._page.update()
 
-    async def _on_analyze(self, e: ft.Event):
+    async def _on_analyze(self, e: ft.Event) -> None:
         """开始分析"""
+        assert self.loading_indicator is not None
+        assert self.analyze_btn is not None
         problem = self.problem_input.value.strip() if self.problem_input else ""
 
         # 至少需要问题描述或参数选择之一
@@ -545,8 +589,8 @@ class MatrixTab(TabContent):
             return
 
         # 显示加载状态
-        self.loading_indicator.visible = True  # type: ignore
-        self.analyze_btn.disabled = True  # type: ignore
+        self.loading_indicator.visible = True
+        self.analyze_btn.disabled = True
         self._page.update()
 
         try:
@@ -559,14 +603,13 @@ class MatrixTab(TabContent):
 
             for imp in improving_list:
                 for wors in worsening_list:
-                    query_result = matrix.query_matrix(
-                        improving=imp,
-                        worsening=wors
-                    )
+                    query_result = matrix.query_matrix(improving=imp, worsening=wors)
                     all_principle_ids.extend(query_result.principle_ids)
 
             unique_principle_ids = list(dict.fromkeys(all_principle_ids))
-            principles = self._principle_service.get_principles_by_ids(unique_principle_ids)
+            principles = self._principle_service.get_principles_by_ids(
+                unique_principle_ids
+            )
 
             # 保存矩阵原理数据，供头脑风暴使用
             self._current_matrix_principles = principles
@@ -574,41 +617,56 @@ class MatrixTab(TabContent):
             # 保持 principles 为 InventivePrinciple 对象用于显示
             solutions = []
             for p in principles:
-                solutions.append(Solution(
-                    principle_id=p.id,
-                    principle_name=p.name,
-                    description=p.definition,
-                    category=p.category,
-                    examples=p.examples,
-                    is_ai_generated=False,
-                    confidence=0.8
-                ))
+                solutions.append(
+                    Solution(
+                        principle_id=p.id,
+                        principle_name=p.name,
+                        description=p.definition,
+                        category=p.category,
+                        examples=p.examples,
+                        is_ai_generated=False,
+                        confidence=0.8,
+                    )
+                )
 
             session = AnalysisSession(
                 problem=problem,
                 matrix_type="39",
-                improving_param=", ".join(self.improving_params) if self.improving_params else "自动",
-                worsening_param=", ".join(self.worsening_params) if self.worsening_params else "自动",
+                improving_param=(
+                    ", ".join(self.improving_params)
+                    if self.improving_params
+                    else "自动"
+                ),
+                worsening_param=(
+                    ", ".join(self.worsening_params)
+                    if self.worsening_params
+                    else "自动"
+                ),
                 ai_enabled=False,
-                solutions=solutions
+                solutions=solutions,
             )
 
             # 传入 InventivePrinciple 对象用于显示详情
-            self._show_principles_result(session, principles, self.matrix_result_container)
+            self._show_principles_result(
+                session, principles, self.matrix_result_container
+            )
             # 不自动保存，等待用户手动添加到历史
 
         except Exception as ex:
             logger.error(f"分析失败: {ex}")
             self._show_snack_bar(f"分析失败: {str(ex)}")
         finally:
-            self.loading_indicator.visible = False  # type: ignore
-            self.analyze_btn.disabled = False  # type: ignore
+            self.loading_indicator.visible = False
+            self.analyze_btn.disabled = False
             self._page.update()
 
-    async def _on_brainstorm(self, e: ft.Event):
+    async def _on_brainstorm(self, e: ft.Event) -> None:
         """头脑风暴按钮点击处理"""
+        assert self.loading_indicator is not None
+        assert self.brainstorm_btn is not None
         # 检查AI是否可用
         from src.ai.ai_client import get_ai_manager
+
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
             self._show_snack_bar("请先开启AI并配置API密钥")
@@ -624,12 +682,13 @@ class MatrixTab(TabContent):
         self._show_brainstorm_loading()
 
         # 显示加载状态
-        self.loading_indicator.visible = True  # type: ignore
-        self.brainstorm_btn.disabled = True  # type: ignore
+        self.loading_indicator.visible = True
+        self.brainstorm_btn.disabled = True
         self._page.update()
 
         try:
             from src.core.triz_engine import get_triz_engine
+
             engine = get_triz_engine()
 
             # 收集所有原理ID（去重）
@@ -641,10 +700,7 @@ class MatrixTab(TabContent):
 
             for imp in improving_list:
                 for wors in worsening_list:
-                    query_result = matrix.query_matrix(
-                        improving=imp,
-                        worsening=wors
-                    )
+                    query_result = matrix.query_matrix(improving=imp, worsening=wors)
                     all_principle_ids.extend(query_result.principle_ids)
 
             unique_principle_ids = list(dict.fromkeys(all_principle_ids))
@@ -655,10 +711,12 @@ class MatrixTab(TabContent):
 
             # 使用遍历注入模式生成解决方案
             # 定义进度回调函数
-            def update_progress(current: int, total: int):
+            def update_progress(current: int, total: int) -> None:
                 # 更新进度显示
-                if hasattr(self, 'brainstorm_progress_text'):
-                    self.brainstorm_progress_text.value = f"正在分析原理 {current}/{total}..."
+                if hasattr(self, "brainstorm_progress_text"):
+                    self.brainstorm_progress_text.value = (
+                        f"正在分析原理 {current}/{total}..."
+                    )
                     self._page.update()
 
             # 调用遍历生成方法
@@ -667,11 +725,12 @@ class MatrixTab(TabContent):
                 improving_param=improving,
                 worsening_param=worsening,
                 principle_ids=unique_principle_ids,
-                progress_callback=update_progress
+                progress_callback=update_progress,
             )
 
             # 创建会话
             from src.data.models import AnalysisSession
+
             session = AnalysisSession(
                 problem=problem,
                 improving_param=improving,
@@ -679,7 +738,7 @@ class MatrixTab(TabContent):
                 ai_enabled=True,
                 matrix_type="39",
                 solutions=solutions,
-                solution_count=len(solutions)
+                solution_count=len(solutions),
             )
 
             # 用矩阵查询的原理数据同步解决方案的原理信息
@@ -692,12 +751,16 @@ class MatrixTab(TabContent):
                         sol.category = p.category
 
             # 检查AI是否返回了有效的结构化解决方案
-            has_structured_solutions = any(
-                getattr(s, 'technical_solution', '') or
-                getattr(s, 'innovation_point', '') or
-                getattr(s, 'cross_domain_cases', [])
-                for s in session.solutions
-            ) if session.solutions else False
+            has_structured_solutions = (
+                any(
+                    getattr(s, "technical_solution", "")
+                    or getattr(s, "innovation_point", "")
+                    or getattr(s, "cross_domain_cases", [])
+                    for s in session.solutions
+                )
+                if session.solutions
+                else False
+            )
 
             if not session.solutions or not has_structured_solutions:
                 # AI未返回有效结果，提示用户
@@ -708,7 +771,9 @@ class MatrixTab(TabContent):
             # 头脑风暴成功，标记AI为已连接
             ai_manager.set_connected(True)
 
-            self._show_solutions_result(session, session.solutions, self.brainstorm_result_container)
+            self._show_solutions_result(
+                session, session.solutions, self.brainstorm_result_container
+            )
 
             self._show_snack_bar(f"头脑风暴完成！生成 {len(session.solutions)} 个方案")
 
@@ -718,46 +783,52 @@ class MatrixTab(TabContent):
             self._mark_ai_disconnected()
             self._show_snack_bar(f"头脑风暴失败: {str(ex)}")
         finally:
-            self.loading_indicator.visible = False  # type: ignore
-            self.brainstorm_btn.disabled = False  # type: ignore
+            self.loading_indicator.visible = False
+            self.brainstorm_btn.disabled = False
             self._hide_brainstorm_loading()
             self._page.update()
 
-    def _show_brainstorm_loading(self):
+    def _show_brainstorm_loading(self) -> None:
         """显示嵌入的头脑风暴加载指示器"""
         self.brainstorm_result_container.content = self.brainstorm_loading
         self.brainstorm_loading.visible = True
 
-    def _hide_brainstorm_loading(self):
+    def _hide_brainstorm_loading(self) -> None:
         """隐藏嵌入的头脑风暴加载指示器"""
         self.brainstorm_loading.visible = False
 
-    def _show_principles_result(self, session: AnalysisSession, principles: List, target_container: Optional[ft.Container] = None):
+    def _show_principles_result(
+        self,
+        session: AnalysisSession,
+        principles: list,
+        target_container: ft.Container | None = None,
+    ) -> None:
         """显示矩阵查询结果（原理）"""
         self._current_matrix_session = session
         container = target_container or self.matrix_result_container
-        card_controls: List[ft.Control] = [
+        card_controls: list[ft.Control] = [
             self._create_principle_card(p) for p in principles
         ]
         if principles:
             card_controls.append(ft.Container(height=10))
         else:
             card_controls.append(ft.Text("暂无结果", size=12, color=ft.Colors.GREY))
-        container.content = ft.ListView(
-            controls=card_controls,
-            spacing=8,
-            expand=True
-        )
+        container.content = ft.ListView(controls=card_controls, spacing=8, expand=True)
         self._page.update()
 
-    def _show_solutions_result(self, session: AnalysisSession, solutions: List, target_container: Optional[ft.Container] = None):
+    def _show_solutions_result(
+        self,
+        session: AnalysisSession,
+        solutions: list,
+        target_container: ft.Container | None = None,
+    ) -> None:
         """显示头脑风暴结果（解决方案）"""
         logger.info(f"_show_solutions_result called with {len(solutions)} solutions")
         self._current_brainstorm_session = session
         self._selected_solutions.clear()  # 清空选中状态
         container = target_container or self.brainstorm_result_container
 
-        card_controls: List[ft.Control] = []
+        card_controls: list[ft.Control] = []
         if solutions:
             card_controls = [
                 self._create_solution_card(s, idx, is_brainstorm=True)
@@ -768,16 +839,13 @@ class MatrixTab(TabContent):
         else:
             card_controls = [ft.Text("暂无结果", size=12, color=ft.Colors.GREY)]
 
-        container.content = ft.ListView(
-            controls=card_controls,
-            spacing=8,
-            expand=True
-        )
+        container.content = ft.ListView(controls=card_controls, spacing=8, expand=True)
         self._page.update()
 
     def _create_save_selected_button(self) -> ft.Container:
         """创建保存选中按钮"""
-        def save_selected(e):
+
+        def save_selected(e: ft.ControlEvent) -> None:
             logger.info(f"save_selected called, selected: {self._selected_solutions}")
 
             if not self._selected_solutions:
@@ -796,7 +864,11 @@ class MatrixTab(TabContent):
                 return
 
             # 获取选中的解决方案
-            selected = [session.solutions[i] for i in self._selected_solutions if i < len(session.solutions)]
+            selected = [
+                session.solutions[i]
+                for i in self._selected_solutions
+                if i < len(session.solutions)
+            ]
             logger.info(f"Selected solutions count: {len(selected)}")
 
             if not selected:
@@ -816,13 +888,14 @@ class MatrixTab(TabContent):
                         self._show_snack_bar("追加失败，请查看日志")
                 else:
                     from src.data.models import AnalysisSession as NewSession
+
                     new_session = NewSession(
                         problem=session.problem,
                         matrix_type=session.matrix_type,
                         improving_param=session.improving_param,
                         worsening_param=session.worsening_param,
                         ai_enabled=session.ai_enabled,
-                        solutions=selected
+                        solutions=selected,
                     )
                     success = self.storage.save_session(new_session)
                     if success:
@@ -841,42 +914,46 @@ class MatrixTab(TabContent):
                 content=ft.Text("保存选中"),
                 icon=ft.icons.Icons.SAVE,
                 on_click=save_selected,
-                style=ft.ButtonStyle(
-                    color=ft.Colors.WHITE,
-                    bgcolor=COLORS["primary"]
-                )
+                style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=COLORS["primary"]),
             ),
             padding=10,
-            alignment=ft.alignment.Alignment(0, 0)
+            alignment=ft.alignment.Alignment(0, 0),
         )
 
-    def _create_principle_card(self, principle) -> ft.Container:
+    def _create_principle_card(self, principle: Any) -> ft.Container:
         """创建原理卡片（与原理库样式一致）"""
         from ...data.models import InventivePrinciple
 
         # 支持 Solution 和 InventivePrinciple 两种对象
-        principle_id = getattr(principle, 'principle_id', None) or getattr(principle, 'id', 0)
-        principle_name = getattr(principle, 'name', '') or getattr(principle, 'principle_name', '')
-        principle_category = getattr(principle, 'category', '物理') or '物理'
-        principle_definition = getattr(principle, 'definition', '') or getattr(principle, 'description', '')
+        principle_id = getattr(principle, "principle_id", None) or getattr(
+            principle, "id", 0
+        )
+        principle_name = getattr(principle, "name", "") or getattr(
+            principle, "principle_name", ""
+        )
+        principle_category = getattr(principle, "category", "物理") or "物理"
+        principle_definition = getattr(principle, "definition", "") or getattr(
+            principle, "description", ""
+        )
 
         # 点击处理：获取完整详情并显示弹窗
-        def show_detail(e):
+        def show_detail(e: ft.ControlEvent) -> None:
             # 如果传入的是Solution，需要通过principle_id获取完整详情
             if isinstance(principle, InventivePrinciple):
-                full_principle = principle
+                full_principle: InventivePrinciple | None = principle
             else:
-                full_principle = self._principle_service.get_principle(principle_id)
+                pid = int(principle_id) if principle_id else 0
+                full_principle = self._principle_service.get_principle(pid)
             if full_principle:
                 self._show_principle_detail_dialog(full_principle)
             else:
                 # 兜底：使用原始数据
                 self._show_simple_detail_dialog(
-                    principle_id,
+                    int(principle_id) if principle_id else 0,
                     principle_name,
                     principle_definition,
-                    getattr(principle, 'examples', []) or [],
-                    principle_category
+                    getattr(principle, "examples", []) or [],
+                    principle_category,
                 )
 
         return ft.Container(
@@ -889,79 +966,87 @@ class MatrixTab(TabContent):
                                     f"#{principle_id}",
                                     size=14,
                                     weight=ft.FontWeight.BOLD,
-                                    color=ft.Colors.WHITE
+                                    color=ft.Colors.WHITE,
                                 ),
                                 padding=ft.Padding.all(6),
                                 border_radius=6,
-                                bgcolor=self._get_category_color(principle_category)
+                                bgcolor=self._get_category_color(principle_category),
                             ),
                             ft.Text(
                                 principle_name,
                                 size=14,
                                 weight=ft.FontWeight.BOLD,
-                                expand=True
-                            )
+                                expand=True,
+                            ),
                         ],
-                        spacing=8
+                        spacing=8,
                     ),
                     ft.Container(height=5),
                     ft.Text(
-                        principle_definition[:50] + "..." if len(principle_definition) > 50 else principle_definition,
+                        (
+                            principle_definition[:50] + "..."
+                            if len(principle_definition) > 50
+                            else principle_definition
+                        ),
                         size=11,
                         color=ft.Colors.GREY_600,
                         max_lines=2,
-                        overflow=ft.TextOverflow.ELLIPSIS
+                        overflow=ft.TextOverflow.ELLIPSIS,
                     ),
                     ft.Container(height=5),
                     ft.Row(
                         controls=[
                             ft.Container(
                                 content=ft.Text(
-                                    principle_category,
-                                    size=9,
-                                    color=COLORS["primary"]
+                                    principle_category, size=9, color=COLORS["primary"]
                                 ),
-                                padding=3
+                                padding=3,
                             ),
                             ft.Container(expand=True),
-                            ft.Icon(ft.icons.Icons.CHEVRON_RIGHT, size=16, color=ft.Colors.GREY)
+                            ft.Icon(
+                                ft.icons.Icons.CHEVRON_RIGHT,
+                                size=16,
+                                color=ft.Colors.GREY,
+                            ),
                         ]
-                    )
+                    ),
                 ],
-                spacing=3
+                spacing=3,
             ),
             padding=12,
             border_radius=8,
             bgcolor=ft.Colors.GREY_100,
             border=ft.border.all(1, ft.Colors.GREY_300),
-            on_click=show_detail
+            on_click=show_detail,
         )
 
-    def _create_solution_card(self, solution, solution_index: int, is_brainstorm=False) -> ft.Container:
+    def _create_solution_card(
+        self, solution: Any, solution_index: int, is_brainstorm: bool = False
+    ) -> ft.Container:
         """创建解决方案卡片（头脑风暴结果）"""
-        solution_id = getattr(solution, 'principle_id', 0)
-        solution_name = getattr(solution, 'principle_name', '')
-        solution_description = getattr(solution, 'description', '')
-        solution_category = getattr(solution, 'category', '物理')
-        solution_examples = getattr(solution, 'examples', []) or []
-        solution_confidence = getattr(solution, 'confidence', None)
-        is_ai_generated = getattr(solution, 'is_ai_generated', False)
+        solution_id = getattr(solution, "principle_id", 0)
+        solution_name = getattr(solution, "principle_name", "")
+        solution_description = getattr(solution, "description", "")
+        solution_category = getattr(solution, "category", "物理")
+        solution_examples = getattr(solution, "examples", []) or []
+        solution_confidence = getattr(solution, "confidence", None)
+        is_ai_generated = getattr(solution, "is_ai_generated", False)
 
         # 4字段结构化数据（头脑风暴专用）
-        technical_solution = getattr(solution, 'technical_solution', '')
-        innovation_point = getattr(solution, 'innovation_point', '')
-        cross_domain_cases = getattr(solution, 'cross_domain_cases', []) or []
-        expected_effect = getattr(solution, 'expected_effect', '')
+        technical_solution = getattr(solution, "technical_solution", "")
+        innovation_point = getattr(solution, "innovation_point", "")
+        cross_domain_cases = getattr(solution, "cross_domain_cases", []) or []
+        expected_effect = getattr(solution, "expected_effect", "")
 
         # 复选框切换选中状态
-        def toggle_selection(e):
+        def toggle_selection(e: ft.ControlEvent) -> None:
             if solution_index in self._selected_solutions:
                 self._selected_solutions.remove(solution_index)
             else:
                 self._selected_solutions.append(solution_index)
 
         # 点击显示解决方案详情弹窗
-        def show_solution_detail(e):
+        def show_solution_detail(e: ft.ControlEvent) -> None:
             self._show_solution_detail_dialog(
                 principle_id=solution_id,
                 principle_name=solution_name,
@@ -969,14 +1054,14 @@ class MatrixTab(TabContent):
                 technical_solution=technical_solution,
                 innovation_point=innovation_point,
                 cross_domain_cases=cross_domain_cases,
-                examples=solution_examples
+                examples=solution_examples,
             )
 
         # 复选框
         checkbox = ft.Checkbox(
             value=solution_index in self._selected_solutions,
             on_change=toggle_selection,
-            tooltip="选择保存"
+            tooltip="选择保存",
         )
 
         # AI标签
@@ -990,11 +1075,23 @@ class MatrixTab(TabContent):
         conf_text = f"{int(solution_confidence * 100)}%" if solution_confidence else ""
 
         # 头脑风暴模式：4字段结构化卡片
-        if is_brainstorm and (technical_solution or innovation_point or cross_domain_cases or expected_effect):
+        if is_brainstorm and (
+            technical_solution
+            or innovation_point
+            or cross_domain_cases
+            or expected_effect
+        ):
             card_content = self._build_structured_card_content(
-                checkbox, solution_id, solution_name, solution_category,
-                technical_solution, innovation_point, cross_domain_cases,
-                expected_effect, ai_label, conf_text
+                checkbox,
+                solution_id,
+                solution_name,
+                solution_category,
+                technical_solution,
+                innovation_point,
+                cross_domain_cases,
+                expected_effect,
+                ai_label,
+                conf_text,
             )
         else:
             # 原有模式
@@ -1009,51 +1106,57 @@ class MatrixTab(TabContent):
                                     f"#{solution_id}",
                                     size=14,
                                     weight=ft.FontWeight.BOLD,
-                                    color=ft.Colors.WHITE
+                                    color=ft.Colors.WHITE,
                                 ),
                                 padding=ft.Padding.all(6),
                                 border_radius=6,
-                                bgcolor=self._get_category_color(solution_category)
+                                bgcolor=self._get_category_color(solution_category),
                             ),
                             ft.Text(
                                 solution_name,
                                 size=14,
                                 weight=ft.FontWeight.BOLD,
-                                expand=True
-                            )
+                                expand=True,
+                            ),
                         ],
-                        spacing=8
+                        spacing=8,
                     ),
                     ft.Container(height=5),
                     ft.Text(
-                        solution_description[:60] + "..." if len(solution_description) > 60 else solution_description,
+                        (
+                            solution_description[:60] + "..."
+                            if len(solution_description) > 60
+                            else solution_description
+                        ),
                         size=11,
                         color=ft.Colors.GREY_600,
                         max_lines=2,
-                        overflow=ft.TextOverflow.ELLIPSIS
+                        overflow=ft.TextOverflow.ELLIPSIS,
                     ),
                     ft.Container(height=5),
                     ft.Row(
                         controls=[
                             ft.Container(
                                 content=ft.Text(
-                                    solution_category,
-                                    size=9,
-                                    color=COLORS["primary"]
+                                    solution_category, size=9, color=COLORS["primary"]
                                 ),
-                                padding=3
+                                padding=3,
                             ),
                             ft.Container(
-                                content=ft.Text(
-                                    ai_label,
-                                    size=9,
-                                    color=ft.Colors.GREY
-                                ),
-                                padding=3
+                                content=ft.Text(ai_label, size=9, color=ft.Colors.GREY),
+                                padding=3,
                             ),
                             ft.Container(expand=True),
-                            ft.Text(conf_text, size=9, color=COLORS["primary"]) if conf_text else ft.Container(),
-                            ft.Icon(ft.icons.Icons.CHEVRON_RIGHT, size=16, color=ft.Colors.GREY)
+                            (
+                                ft.Text(conf_text, size=9, color=COLORS["primary"])
+                                if conf_text
+                                else ft.Container()
+                            ),
+                            ft.Icon(
+                                ft.icons.Icons.CHEVRON_RIGHT,
+                                size=16,
+                                color=ft.Colors.GREY,
+                            ),
                         ]
                     ),
                     # 保存按钮
@@ -1061,11 +1164,15 @@ class MatrixTab(TabContent):
                     ft.Row(
                         controls=[
                             ft.Container(expand=True),
-                            ft.Icon(ft.icons.Icons.CHEVRON_RIGHT, size=16, color=ft.Colors.GREY)
+                            ft.Icon(
+                                ft.icons.Icons.CHEVRON_RIGHT,
+                                size=16,
+                                color=ft.Colors.GREY,
+                            ),
                         ]
-                    )
+                    ),
                 ],
-                spacing=3
+                spacing=3,
             )
 
         return ft.Container(
@@ -1074,17 +1181,35 @@ class MatrixTab(TabContent):
             border_radius=8,
             bgcolor=ft.Colors.GREY_100,
             border=ft.border.all(1, ft.Colors.GREY_300),
-            on_click=show_solution_detail
+            on_click=show_solution_detail,
         )
 
-    def _build_structured_card_content(self, checkbox, solution_id, solution_name, solution_category,
-                                       technical_solution, innovation_point, cross_domain_cases,
-                                       expected_effect, ai_label, conf_text) -> ft.Column:
+    def _build_structured_card_content(
+        self,
+        checkbox: ft.Checkbox,
+        solution_id: int,
+        solution_name: str,
+        solution_category: str,
+        technical_solution: str,
+        innovation_point: str,
+        cross_domain_cases: list[str],
+        expected_effect: str,
+        ai_label: str,
+        conf_text: str,
+    ) -> ft.Column:
         """构建4字段结构化卡片内容"""
         # 技术方案
-        tech_text = technical_solution[:80] + "..." if len(technical_solution) > 80 else technical_solution
+        tech_text = (
+            technical_solution[:80] + "..."
+            if len(technical_solution) > 80
+            else technical_solution
+        )
         # 创新点
-        innov_text = innovation_point[:50] + "..." if len(innovation_point) > 50 else innovation_point
+        innov_text = (
+            innovation_point[:50] + "..."
+            if len(innovation_point) > 50
+            else innovation_point
+        )
         # 案例
         cases_text = " | ".join(cross_domain_cases[:2]) if cross_domain_cases else ""
 
@@ -1099,29 +1224,33 @@ class MatrixTab(TabContent):
                                 f"#{solution_id}",
                                 size=14,
                                 weight=ft.FontWeight.BOLD,
-                                color=ft.Colors.WHITE
+                                color=ft.Colors.WHITE,
                             ),
                             padding=ft.Padding.all(6),
                             border_radius=6,
-                            bgcolor=self._get_category_color(solution_category)
+                            bgcolor=self._get_category_color(solution_category),
                         ),
                         ft.Text(
                             solution_name,
                             size=14,
                             weight=ft.FontWeight.BOLD,
-                            expand=True
-                        )
+                            expand=True,
+                        ),
                     ],
-                    spacing=8
+                    spacing=8,
                 ),
                 ft.Container(height=8),
-
                 # 技术方案字段
                 ft.Row(
                     controls=[
                         ft.Container(
-                            content=ft.Text("📋 技术方案", size=10, weight=ft.FontWeight.BOLD, color=COLORS["primary"]),
-                            padding=0
+                            content=ft.Text(
+                                "📋 技术方案",
+                                size=10,
+                                weight=ft.FontWeight.BOLD,
+                                color=COLORS["primary"],
+                            ),
+                            padding=0,
                         )
                     ]
                 ),
@@ -1130,14 +1259,18 @@ class MatrixTab(TabContent):
                     size=11,
                     color=ft.Colors.GREY_700,
                     max_lines=2,
-                    overflow=ft.TextOverflow.ELLIPSIS
+                    overflow=ft.TextOverflow.ELLIPSIS,
                 ),
                 ft.Container(height=5),
-
                 # 创新点字段
                 ft.Row(
                     controls=[
-                        ft.Text("💡 创新点", size=10, weight=ft.FontWeight.BOLD, color=COLORS["secondary"])
+                        ft.Text(
+                            "💡 创新点",
+                            size=10,
+                            weight=ft.FontWeight.BOLD,
+                            color=COLORS["secondary"],
+                        )
                     ]
                 ),
                 ft.Text(
@@ -1145,14 +1278,18 @@ class MatrixTab(TabContent):
                     size=11,
                     color=ft.Colors.GREY_700,
                     max_lines=1,
-                    overflow=ft.TextOverflow.ELLIPSIS
+                    overflow=ft.TextOverflow.ELLIPSIS,
                 ),
                 ft.Container(height=5),
-
                 # 跨领域案例
                 ft.Row(
                     controls=[
-                        ft.Text("🌏 案例", size=10, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE)
+                        ft.Text(
+                            "🌏 案例",
+                            size=10,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.ORANGE,
+                        )
                     ]
                 ),
                 ft.Text(
@@ -1160,41 +1297,49 @@ class MatrixTab(TabContent):
                     size=10,
                     color=ft.Colors.GREY_600,
                     max_lines=1,
-                    overflow=ft.TextOverflow.ELLIPSIS
+                    overflow=ft.TextOverflow.ELLIPSIS,
                 ),
                 ft.Container(height=5),
-
                 # 底部：分类标签+AI标签+置信度
                 ft.Row(
                     controls=[
                         ft.Container(
-                            content=ft.Text(solution_category, size=9, color=COLORS["primary"]),
-                            padding=3
+                            content=ft.Text(
+                                solution_category, size=9, color=COLORS["primary"]
+                            ),
+                            padding=3,
                         ),
                         ft.Container(
                             content=ft.Text(ai_label, size=9, color=ft.Colors.GREY),
-                            padding=3
+                            padding=3,
                         ),
                         ft.Container(expand=True),
-                        ft.Text(conf_text, size=9, color=COLORS["primary"]) if conf_text else ft.Container(),
-                        ft.Icon(ft.icons.Icons.CHEVRON_RIGHT, size=16, color=ft.Colors.GREY)
+                        (
+                            ft.Text(conf_text, size=9, color=COLORS["primary"])
+                            if conf_text
+                            else ft.Container()
+                        ),
+                        ft.Icon(
+                            ft.icons.Icons.CHEVRON_RIGHT, size=16, color=ft.Colors.GREY
+                        ),
                     ]
-                )
+                ),
             ],
-            spacing=2
+            spacing=2,
         )
 
-    def _show_principle_detail_dialog(self, principle):
+    def _show_principle_detail_dialog(self, principle: Any) -> None:
         """显示原理详情弹窗"""
         from ...data.models import InventivePrinciple
+
         if not isinstance(principle, InventivePrinciple):
             # 如果不是 InventivePrinciple 类型，调用简化版
             self._show_simple_detail_dialog(
-                principle.id if hasattr(principle, 'id') else 0,
-                principle.name if hasattr(principle, 'name') else '',
-                principle.definition if hasattr(principle, 'definition') else '',
-                principle.examples if hasattr(principle, 'examples') else [],
-                principle.category if hasattr(principle, 'category') else ''
+                principle.id if hasattr(principle, "id") else 0,
+                principle.name if hasattr(principle, "name") else "",
+                principle.definition if hasattr(principle, "definition") else "",
+                principle.examples if hasattr(principle, "examples") else [],
+                principle.category if hasattr(principle, "category") else "",
             )
             return
 
@@ -1202,14 +1347,19 @@ class MatrixTab(TabContent):
             title=ft.Row(
                 controls=[
                     ft.Container(
-                        content=ft.Text(f"#{principle.id}", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                        content=ft.Text(
+                            f"#{principle.id}",
+                            size=18,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                        ),
                         padding=8,
                         border_radius=8,
-                        bgcolor=COLORS["primary"]
+                        bgcolor=COLORS["primary"],
                     ),
-                    ft.Text(principle.name, size=18, weight=ft.FontWeight.BOLD)
+                    ft.Text(principle.name, size=18, weight=ft.FontWeight.BOLD),
                 ],
-                spacing=10
+                spacing=10,
             ),
             content=ft.Container(
                 content=ft.Column(
@@ -1218,118 +1368,156 @@ class MatrixTab(TabContent):
                         ft.Container(
                             content=ft.Column(
                                 controls=[
-                                    ft.Text("核心定义", size=14, weight=ft.FontWeight.BOLD, color=COLORS["primary"]),
-                                    ft.Text(principle.definition, size=13)
+                                    ft.Text(
+                                        "核心定义",
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=COLORS["primary"],
+                                    ),
+                                    ft.Text(principle.definition, size=13),
                                 ],
-                                spacing=5
+                                spacing=5,
                             ),
                             padding=10,
                             bgcolor=ft.Colors.GREY_100,
-                            border_radius=8
+                            border_radius=8,
                         ),
-
                         # 分类标签
                         ft.Container(
                             content=ft.Row(
                                 controls=[
-                                    ft.Text("分类:", size=12, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        "分类:", size=12, weight=ft.FontWeight.BOLD
+                                    ),
                                     ft.Container(
-                                        content=ft.Text(principle.category, size=11, color=ft.Colors.WHITE),
+                                        content=ft.Text(
+                                            principle.category,
+                                            size=11,
+                                            color=ft.Colors.WHITE,
+                                        ),
                                         padding=5,
                                         border_radius=5,
-                                        bgcolor=self._get_category_color(principle.category)
+                                        bgcolor=self._get_category_color(
+                                            principle.category
+                                        ),
                                     ),
                                     ft.Container(expand=True),
-                                    ft.Text(f"标签: {', '.join(principle.tags)}", size=11, color=ft.Colors.GREY) if principle.tags else ft.Container()
+                                    (
+                                        ft.Text(
+                                            f"标签: {', '.join(principle.tags)}",
+                                            size=11,
+                                            color=ft.Colors.GREY,
+                                        )
+                                        if principle.tags
+                                        else ft.Container()
+                                    ),
                                 ],
-                                spacing=10
+                                spacing=10,
                             ),
-                            padding=10
+                            padding=10,
                         ),
-
                         ft.Divider(),
-
                         # 示例
                         ft.Text("示例", size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Column(
-                                controls=[
-                                    ft.Text(f"• {ex}", size=12) for ex in principle.examples
-                                ] if principle.examples else [ft.Text("暂无", size=12, color=ft.Colors.GREY)],
-                                spacing=3
+                                controls=(
+                                    [
+                                        ft.Text(f"• {ex}", size=12)
+                                        for ex in principle.examples
+                                    ]
+                                    if principle.examples
+                                    else [
+                                        ft.Text("暂无", size=12, color=ft.Colors.GREY)
+                                    ]
+                                ),
+                                spacing=3,
                             ),
-                            padding=5
+                            padding=5,
                         ),
-
                         ft.Divider(),
-
                         # 应用案例
                         ft.Text("应用案例", size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Column(
-                                controls=[
-                                    ft.Text(f"• {uc}", size=12) for uc in principle.use_cases
-                                ] if principle.use_cases else [ft.Text("暂无", size=12, color=ft.Colors.GREY)],
-                                spacing=3
+                                controls=(
+                                    [
+                                        ft.Text(f"• {uc}", size=12)
+                                        for uc in principle.use_cases
+                                    ]
+                                    if principle.use_cases
+                                    else [
+                                        ft.Text("暂无", size=12, color=ft.Colors.GREY)
+                                    ]
+                                ),
+                                spacing=3,
                             ),
-                            padding=5
+                            padding=5,
                         ),
-
                         ft.Divider(),
-
                         # 详细说明
                         ft.Text("详细说明", size=14, weight=ft.FontWeight.BOLD),
                         ft.Text(principle.explanation, size=12),
-
                         ft.Divider(),
-
                         # 实施步骤
                         ft.Text("实施步骤", size=14, weight=ft.FontWeight.BOLD),
                         ft.Column(
-                            controls=[
-                                ft.Text(step, size=12) for step in principle.implementation_steps
-                            ] if principle.implementation_steps else [ft.Text("暂无", size=12, color=ft.Colors.GREY)],
-                            spacing=3
+                            controls=(
+                                [
+                                    ft.Text(step, size=12)
+                                    for step in principle.implementation_steps
+                                ]
+                                if principle.implementation_steps
+                                else [ft.Text("暂无", size=12, color=ft.Colors.GREY)]
+                            ),
+                            spacing=3,
                         ),
-
                         ft.Divider(),
-
                         # 应用效益
                         ft.Text("应用效益", size=14, weight=ft.FontWeight.BOLD),
                         ft.Text(principle.benefits, size=12),
-
                         # 底部留白，防止内容被遮挡
-                        ft.Container(height=40)
+                        ft.Container(height=40),
                     ],
                     spacing=8,
-                    scroll=ft.ScrollMode.AUTO
+                    scroll=ft.ScrollMode.AUTO,
                 ),
                 width=400,
                 height=500,
-                padding=10
+                padding=10,
             ),
-            actions=[
-                ft.TextButton("关闭", on_click=lambda e: self._close_dialog())
-            ],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
+            actions_alignment=ft.MainAxisAlignment.END,
         )
 
-        self._page.show_dialog(dialog)  # type: ignore
+        self._page.show_dialog(dialog)
 
-    def _show_simple_detail_dialog(self, principle_id, principle_name, definition, examples, category):
+    def _show_simple_detail_dialog(
+        self,
+        principle_id: int,
+        principle_name: str,
+        definition: str,
+        examples: list[str],
+        category: str,
+    ) -> None:
         """显示简化版详情弹窗（用于Solution对象）"""
         dialog = ft.AlertDialog(
             title=ft.Row(
                 controls=[
                     ft.Container(
-                        content=ft.Text(f"#{principle_id}", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                        content=ft.Text(
+                            f"#{principle_id}",
+                            size=18,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                        ),
                         padding=8,
                         border_radius=8,
-                        bgcolor=COLORS["primary"]
+                        bgcolor=COLORS["primary"],
                     ),
-                    ft.Text(principle_name, size=18, weight=ft.FontWeight.BOLD)
+                    ft.Text(principle_name, size=18, weight=ft.FontWeight.BOLD),
                 ],
-                spacing=10
+                spacing=10,
             ),
             content=ft.Container(
                 content=ft.Column(
@@ -1338,62 +1526,73 @@ class MatrixTab(TabContent):
                         ft.Container(
                             content=ft.Row(
                                 controls=[
-                                    ft.Text("分类:", size=12, weight=ft.FontWeight.BOLD),
+                                    ft.Text(
+                                        "分类:", size=12, weight=ft.FontWeight.BOLD
+                                    ),
                                     ft.Container(
-                                        content=ft.Text(category, size=11, color=ft.Colors.WHITE),
+                                        content=ft.Text(
+                                            category, size=11, color=ft.Colors.WHITE
+                                        ),
                                         padding=5,
                                         border_radius=5,
-                                        bgcolor=self._get_category_color(category)
-                                    )
+                                        bgcolor=self._get_category_color(category),
+                                    ),
                                 ],
-                                spacing=10
+                                spacing=10,
                             ),
-                            padding=10
+                            padding=10,
                         ),
-
                         ft.Divider(),
-
                         # 核心定义
                         ft.Text("核心定义", size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Text(definition, size=13),
                             padding=10,
                             bgcolor=ft.Colors.GREY_100,
-                            border_radius=8
+                            border_radius=8,
                         ),
-
                         ft.Divider(),
-
                         # 示例
                         ft.Text("应用示例", size=14, weight=ft.FontWeight.BOLD),
                         ft.Container(
                             content=ft.Column(
-                                controls=[
-                                    ft.Text(f"• {ex}", size=12) for ex in examples
-                                ] if examples else [ft.Text("暂无示例", size=12, color=ft.Colors.GREY)],
-                                spacing=3
+                                controls=(
+                                    [ft.Text(f"• {ex}", size=12) for ex in examples]
+                                    if examples
+                                    else [
+                                        ft.Text(
+                                            "暂无示例", size=12, color=ft.Colors.GREY
+                                        )
+                                    ]
+                                ),
+                                spacing=3,
                             ),
-                            padding=5
-                        )
+                            padding=5,
+                        ),
                     ],
                     spacing=8,
-                    scroll=ft.ScrollMode.AUTO
+                    scroll=ft.ScrollMode.AUTO,
                 ),
                 width=400,
                 height=350,
-                padding=10
+                padding=10,
             ),
-            actions=[
-                ft.TextButton("关闭", on_click=lambda e: self._close_dialog())
-            ],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
+            actions_alignment=ft.MainAxisAlignment.END,
         )
 
-        self._page.show_dialog(dialog)  # type: ignore
+        self._page.show_dialog(dialog)
 
-    def _show_solution_detail_dialog(self, principle_id, principle_name, category,
-                                     technical_solution='', innovation_point='',
-                                     cross_domain_cases=None, examples=None):
+    def _show_solution_detail_dialog(
+        self,
+        principle_id: int,
+        principle_name: str,
+        category: str,
+        technical_solution: str = "",
+        innovation_point: str = "",
+        cross_domain_cases: list[str] | None = None,
+        examples: list[str] | None = None,
+    ) -> None:
         """显示头脑风暴解决方案详情弹窗"""
         if cross_domain_cases is None:
             cross_domain_cases = []
@@ -1413,12 +1612,12 @@ class MatrixTab(TabContent):
                             content=ft.Text(category, size=11, color=ft.Colors.WHITE),
                             padding=5,
                             border_radius=5,
-                            bgcolor=self._get_category_color(category)
-                        )
+                            bgcolor=self._get_category_color(category),
+                        ),
                     ],
-                    spacing=10
+                    spacing=10,
                 ),
-                padding=10
+                padding=10,
             )
         )
 
@@ -1426,26 +1625,30 @@ class MatrixTab(TabContent):
 
         # 技术方向（原核心定义）
         if technical_solution:
-            content_controls.append(ft.Text("技术方向", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Text("技术方向", size=14, weight=ft.FontWeight.BOLD)
+            )
             content_controls.append(
                 ft.Container(
                     content=ft.Text(technical_solution, size=13),
                     padding=10,
                     bgcolor=ft.Colors.GREY_100,
-                    border_radius=8
+                    border_radius=8,
                 )
             )
             content_controls.append(ft.Container(height=5))
 
         # 创新点
         if innovation_point:
-            content_controls.append(ft.Text("创新点", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Text("创新点", size=14, weight=ft.FontWeight.BOLD)
+            )
             content_controls.append(
                 ft.Container(
                     content=ft.Text(innovation_point, size=13),
                     padding=10,
                     bgcolor=ft.Colors.GREY_100,
-                    border_radius=8
+                    border_radius=8,
                 )
             )
             content_controls.append(ft.Container(height=5))
@@ -1459,33 +1662,42 @@ class MatrixTab(TabContent):
                     content=ft.Text(cases_text, size=12),
                     padding=10,
                     bgcolor=ft.Colors.GREY_100,
-                    border_radius=8
+                    border_radius=8,
                 )
             )
             content_controls.append(ft.Container(height=5))
 
         # 如果没有技术方向和创新点，显示原有的定义和示例
         if not technical_solution and not innovation_point and examples:
-            content_controls.append(ft.Text("核心定义", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Text("核心定义", size=14, weight=ft.FontWeight.BOLD)
+            )
             content_controls.append(
                 ft.Container(
-                    content=ft.Text(getattr(self, '_current_solution', {}).get('description', ''), size=13),
+                    content=ft.Text(
+                        getattr(self, "_current_solution", {}).get("description", ""),
+                        size=13,
+                    ),
                     padding=10,
                     bgcolor=ft.Colors.GREY_100,
-                    border_radius=8
+                    border_radius=8,
                 )
             )
             content_controls.append(ft.Container(height=5))
-            content_controls.append(ft.Text("应用示例", size=14, weight=ft.FontWeight.BOLD))
+            content_controls.append(
+                ft.Text("应用示例", size=14, weight=ft.FontWeight.BOLD)
+            )
             content_controls.append(
                 ft.Container(
                     content=ft.Column(
-                        controls=[
-                            ft.Text(f"• {ex}", size=12) for ex in examples
-                        ] if examples else [ft.Text("暂无示例", size=12, color=ft.Colors.GREY)],
-                        spacing=3
+                        controls=(
+                            [ft.Text(f"• {ex}", size=12) for ex in examples]
+                            if examples
+                            else [ft.Text("暂无示例", size=12, color=ft.Colors.GREY)]
+                        ),
+                        spacing=3,
                     ),
-                    padding=5
+                    padding=5,
                 )
             )
 
@@ -1496,55 +1708,57 @@ class MatrixTab(TabContent):
             title=ft.Row(
                 controls=[
                     ft.Container(
-                        content=ft.Text(f"#{principle_id}", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                        content=ft.Text(
+                            f"#{principle_id}",
+                            size=18,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.WHITE,
+                        ),
                         padding=8,
                         border_radius=8,
-                        bgcolor=COLORS["primary"]
+                        bgcolor=COLORS["primary"],
                     ),
-                    ft.Text(principle_name, size=18, weight=ft.FontWeight.BOLD)
+                    ft.Text(principle_name, size=18, weight=ft.FontWeight.BOLD),
                 ],
-                spacing=10
+                spacing=10,
             ),
             content=ft.Container(
                 content=ft.Column(
-                    controls=content_controls,
-                    spacing=8,
-                    scroll=ft.ScrollMode.AUTO
+                    controls=content_controls, spacing=8, scroll=ft.ScrollMode.AUTO
                 ),
                 width=400,
                 height=450,
-                padding=10
+                padding=10,
             ),
-            actions=[
-                ft.TextButton("关闭", on_click=lambda e: self._close_dialog())
-            ],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
+            actions_alignment=ft.MainAxisAlignment.END,
         )
 
-        self._page.show_dialog(dialog)  # type: ignore
+        self._page.show_dialog(dialog)
 
-    def _close_dialog(self):
+    def _close_dialog(self) -> None:
         """关闭弹窗"""
         # 关闭overlay弹窗
-        if hasattr(self, '_solutions_overlay') and self._solutions_overlay:
+        if hasattr(self, "_solutions_overlay") and self._solutions_overlay:
             try:
                 self._page.remove(self._solutions_overlay)
-            except:
+            except Exception:
                 pass
             self._solutions_overlay = None
-        if hasattr(self, '_detail_overlay') and self._detail_overlay:
+        if hasattr(self, "_detail_overlay") and self._detail_overlay:
             try:
                 self._page.remove(self._detail_overlay)
-            except:
+            except Exception:
                 pass
             self._detail_overlay = None
         # 关闭AlertDialog
         try:
-            self._page.pop_dialog()  # type: ignore
-        except:
+            self._page.pop_dialog()
+        except Exception:
             pass
 
     def _get_category_color(self, category: str) -> str:
         """获取分类颜色"""
         from ...config.constants import CATEGORY_COLORS
+
         return CATEGORY_COLORS.get(category, "#2196F3")

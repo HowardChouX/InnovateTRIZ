@@ -3,19 +3,18 @@ UI模块测试
 测试参数选择器和解决方案展示
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # 添加src目录到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import flet as ft
+from src.data.local_storage import LocalStorage
+from src.data.models import AnalysisSession, Solution
 from src.ui import ParameterPicker, SolutionListView
 from src.ui.matrix_tab import MatrixTab
-from src.data.models import Solution, AnalysisSession
-from src.data.local_storage import LocalStorage
-from src.config.settings import AppSettings
 
 
 class MockPage:
@@ -97,7 +96,7 @@ class TestParameterPicker:
             page=self.page,
             param_type="improving",
             current_values=None,
-            on_selected=None
+            on_selected=None,
         )
 
         assert picker is not None
@@ -110,7 +109,7 @@ class TestParameterPicker:
             page=self.page,
             param_type="worsening",
             current_values=["成本"],
-            on_selected=None
+            on_selected=None,
         )
 
         assert picker.param_type == "worsening"
@@ -132,7 +131,11 @@ class TestSolutionListView:
         solutions = [
             Solution(principle_id=1, principle_name="分割原理", description="测试1"),
             Solution(principle_id=15, principle_name="动态性原理", description="测试2"),
-            Solution(principle_id=35, principle_name="物理或化学参数改变原理", description="测试3"),
+            Solution(
+                principle_id=35,
+                principle_name="物理或化学参数改变原理",
+                description="测试3",
+            ),
         ]
 
         categorized = view._categorize_by_principle(solutions)
@@ -168,7 +171,7 @@ class TestSolutionModel:
         solution = Solution(
             principle_id=1,
             principle_name="分割原理",
-            description="将整体分割为独立模块"
+            description="将整体分割为独立模块",
         )
 
         assert solution.principle_id == 1
@@ -183,7 +186,7 @@ class TestSolutionModel:
             principle_id=1,
             principle_name="分割原理",
             description="测试描述",
-            confidence=0.9
+            confidence=0.9,
         )
 
         data = solution.to_dict()
@@ -205,7 +208,7 @@ class TestSolutionModel:
             "is_ai_generated": True,
             "category": "物理",
             "examples": ["例1", "例2"],
-            "created_at": "2024-01-01T12:00:00"
+            "created_at": "2024-01-01T12:00:00",
         }
 
         solution = Solution.from_dict(data)
@@ -233,19 +236,14 @@ class TestAnalysisSessionModel:
         solutions = [
             Solution(principle_id=1, principle_name="分割原理", description="测试")
         ]
-        session = AnalysisSession(
-            problem="测试问题",
-            solutions=solutions
-        )
+        session = AnalysisSession(problem="测试问题", solutions=solutions)
 
         assert len(session.solutions) == 1
         assert session.solutions[0].principle_id == 1
 
     def test_session_get_summary(self):
         """测试获取会话摘要"""
-        session = AnalysisSession(
-            problem="这是一个测试问题，用于验证摘要功能"
-        )
+        session = AnalysisSession(problem="这是一个测试问题，用于验证摘要功能")
 
         summary = session.get_summary()
 

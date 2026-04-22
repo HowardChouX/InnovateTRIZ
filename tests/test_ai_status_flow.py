@@ -3,10 +3,7 @@ AI状态同步流程测试
 验证AI状态在实际使用场景中的同步情况
 """
 
-import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime
+from unittest.mock import MagicMock
 
 # 测试用的模拟数据
 MOCK_API_KEY = "test-api-key-12345"
@@ -33,13 +30,14 @@ class MockAIClient:
         return {
             "improving": ["速度", "效率"],
             "worsening": ["重量", "成本"],
-            "explanation": "测试解释"
+            "explanation": "测试解释",
         }
 
     async def generate_solutions(self, request):
         if self._should_fail:
             raise Exception("AI连接失败")
         from src.data.models import AIAnalysisResponse, Solution
+
         return AIAnalysisResponse(
             success=True,
             solutions=[
@@ -48,9 +46,9 @@ class MockAIClient:
                     principle_name="分割原理",
                     description="测试方案",
                     confidence=0.9,
-                    is_ai_generated=True
+                    is_ai_generated=True,
                 )
-            ]
+            ],
         )
 
 
@@ -62,11 +60,7 @@ class MockAIManager:
         self._connected = False
         self._client = None
         self._should_fail = should_fail
-        self.config = {
-            "provider": MOCK_PROVIDER,
-            "api_key": None,
-            "enabled": False
-        }
+        self.config = {"provider": MOCK_PROVIDER, "api_key": None, "enabled": False}
 
     def initialize(self, api_key=None, provider=None, base_url=None, model=None):
         if api_key:
@@ -75,8 +69,8 @@ class MockAIManager:
             self.config["provider"] = provider or MOCK_PROVIDER
             self.config["enabled"] = True
             self._client = MockAIClient(should_fail=self._should_fail)
-            print(f"      ├─ initialize()  API密钥已配置")
-            print(f"      ├─ is_enabled()  -> True")
+            print("      ├─ initialize()  API密钥已配置")
+            print("      ├─ is_enabled()  -> True")
 
     def is_enabled(self):
         return self._enabled
@@ -111,7 +105,9 @@ class TestLogger:
         """打印标题"""
         width = 68
         print(f"\n{cls.BOLD}{cls.CYAN}{'─' * width}{cls.RESET}")
-        print(f"{cls.BOLD}{cls.CYAN}│ {text}{' ' * (width - len(text) - 3)}│{cls.RESET}")
+        print(
+            f"{cls.BOLD}{cls.CYAN}│ {text}{' ' * (width - len(text) - 3)}│{cls.RESET}"
+        )
         print(f"{cls.BOLD}{cls.CYAN}{'─' * width}{cls.RESET}")
 
     @classmethod
@@ -148,11 +144,15 @@ class TestLogger:
     def result(cls, actual, expected, description=""):
         """打印测试结果"""
         passed = actual == expected
-        status = f"{cls.GREEN}PASS{cls.RESET}" if passed else f"{cls.RED}FAIL{cls.RESET}"
+        status = (
+            f"{cls.GREEN}PASS{cls.RESET}" if passed else f"{cls.RED}FAIL{cls.RESET}"
+        )
         icon = "✓" if passed else "✗"
         symbol = cls.GREEN if passed else cls.RED
         desc = f" ({description})" if description else ""
-        print(f"    {symbol}{icon}{cls.RESET} {description}: {cls.DIM}actual={actual}{cls.RESET}, {cls.DIM}expected={expected}{cls.RESET} {status}")
+        print(
+            f"    {symbol}{icon}{cls.RESET} {description}: {cls.DIM}actual={actual}{cls.RESET}, {cls.DIM}expected={expected}{cls.RESET} {status}"
+        )
 
     @classmethod
     def divider(cls, char="─", length=68):
@@ -162,7 +162,9 @@ class TestLogger:
     @classmethod
     def flow(cls, from_state, to_state, description=""):
         """打印状态流转"""
-        print(f"      {cls.DIM}└─ [{from_state}] ──{description}──> [{to_state}]{cls.RESET}")
+        print(
+            f"      {cls.DIM}└─ [{from_state}] ──{description}──> [{to_state}]{cls.RESET}"
+        )
 
 
 class TestAIStatusSyncFlow:
@@ -298,7 +300,7 @@ class TestAIStatusSyncFlow:
         # 模拟 _mark_ai_disconnected 逻辑
         try:
             settings_tab_ref = mock_page.session.get("settings_tab")
-            if settings_tab_ref and hasattr(settings_tab_ref, '_update_ai_status'):
+            if settings_tab_ref and hasattr(settings_tab_ref, "_update_ai_status"):
                 settings_tab_ref._update_ai_status(force_check=False)
                 TestLogger.info("settings_tab._update_ai_status() 被调用")
         except Exception as e:
@@ -369,7 +371,9 @@ class TestAIStatusSyncFlow:
 
         # 首次打开
         TestLogger.step("6.1 首次打开应用")
-        TestLogger.info(f"AI状态: enabled={manager.is_enabled()}, connected={manager.is_connected()}")
+        TestLogger.info(
+            f"AI状态: enabled={manager.is_enabled()}, connected={manager.is_connected()}"
+        )
         TestLogger.result(manager.is_enabled(), False, "AI未启用")
         TestLogger.result(manager.is_connected(), False, "连接未知")
 
