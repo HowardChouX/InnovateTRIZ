@@ -75,7 +75,7 @@ class PrinciplesTab(TabContent):
             controls=[
                 ft.Container(
                     content=ft.Text(c, size=13, weight=ft.FontWeight.W_500),
-                    padding=ft.padding.symmetric(vertical=8, horizontal=14),
+                    padding=ft.Padding.symmetric(vertical=8, horizontal=14),
                     border_radius=16,
                     border=ft.Border.all(1.5, ft.Colors.GREY_400),
                     bgcolor=(
@@ -186,7 +186,7 @@ class PrinciplesTab(TabContent):
                                     weight=ft.FontWeight.BOLD,
                                     color=ft.Colors.WHITE,
                                 ),
-                                padding=ft.padding.all(6),
+                                padding=ft.Padding.all(6),
                                 border_radius=6,
                                 bgcolor=self._get_category_color(principle.category),
                             ),

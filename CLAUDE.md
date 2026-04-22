@@ -59,7 +59,7 @@ flet build aab
 ## 架构概览
 
 ```
-根目录 main.py → TRIZApp.main(page)           # 应用入口（注意：不是 src/main.py）
+src/main.py → TRIZApp.main(page)              # 应用入口（pyproject.toml 指定 path="src"）
 ├── AppSettings.load()                        # 异步加载 config.json
 ├── LocalStorage.initialize()                  # SQLite 初始化
 ├── AIManager.initialize()                     # AI 客户端（可选）

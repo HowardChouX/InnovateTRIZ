@@ -8,6 +8,7 @@ TRIZ应用日志测试脚本
 """
 
 import os
+import platform
 import sys
 from datetime import datetime
 
