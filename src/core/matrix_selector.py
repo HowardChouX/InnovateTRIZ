@@ -59,14 +59,6 @@ class ContradictionMatrix:
         self.matrix = {}
         logger.warning("48矛盾矩阵暂未实现，使用空矩阵")
 
-    def get_improving_params(self) -> list[str]:
-        """获取所有可改善参数"""
-        return self.parameters.copy()
-
-    def get_worsening_params(self) -> list[str]:
-        """获取所有可能恶化参数"""
-        return self.parameters.copy()
-
     def find_solutions(self, improving: str, worsening: str) -> list[int]:
         """
         查找对应的发明原理编号
@@ -133,8 +125,8 @@ class ContradictionMatrix:
             return ""
         # 移除空格和特殊字符，转小写
         normalized = param.strip().lower()
-        # 移除"运动物体的"和"静止物体的"前缀进行对比
-        normalized_no_prefix = normalized.replace("运动物体的", "").replace(
+        # 移除"移动物体的"和"静止物体的"前缀进行对比
+        normalized_no_prefix = normalized.replace("移动物体的", "").replace(
             "静止物体的", ""
         )
         return normalized_no_prefix
@@ -207,70 +199,6 @@ class ContradictionMatrix:
             confidence="高" if len(result.principle_ids) > 0 else "低",
         )
 
-    def suggest_worsening_params(self, improving: str) -> list[str]:
-        """
-        根据改善参数建议可能的恶化参数
-
-        Args:
-            improving: 改善参数
-
-        Returns:
-            建议的恶化参数列表
-        """
-        suggestions = []
-
-        # 查找矩阵中与该改善参数相关的恶化参数
-        for (imp, wors), _ in self.matrix.items():
-            if imp == improving or imp in improving or improving in imp:
-                suggestions.append(wors)
-
-        # 去重并限制数量
-        suggestions = list(set(suggestions))
-
-        # 如果没有找到建议，返回一些常见参数
-        if not suggestions:
-            suggestions = [
-                "移动物体用的能源",
-                "重量",
-                "成本",
-                "设备的复杂性",
-                "时间的浪费",
-            ]
-
-        return suggestions[:10]  # 最多返回10个建议
-
-    def validate_parameters(self, improving: str, worsening: str) -> tuple[bool, str]:
-        """
-        验证参数是否有效
-
-        Args:
-            improving: 改善参数
-            worsening: 恶化参数
-
-        Returns:
-            (是否有效, 错误消息)
-        """
-        if not improving or not improving.strip():
-            return False, "改善参数不能为空"
-
-        if not worsening or not worsening.strip():
-            return False, "恶化参数不能为空"
-
-        # 检查参数是否在列表中（宽松检查）
-        improving_valid = any(
-            improving in param or param in improving for param in self.parameters
-        )
-        worsening_valid = any(
-            worsening in param or param in worsening for param in self.parameters
-        )
-
-        if not improving_valid:
-            logger.warning(f"改善参数 '{improving}' 不在标准参数列表中")
-
-        if not worsening_valid:
-            logger.warning(f"恶化参数 '{worsening}' 不在标准参数列表中")
-
-        return True, "参数有效"
 
 
 class MatrixManager:

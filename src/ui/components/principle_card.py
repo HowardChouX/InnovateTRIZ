@@ -88,7 +88,7 @@ class PrincipleCard(ft.Container):
             spacing=6,
         )
 
-    def _handle_click(self, _: ft.ControlEvent) -> None:
+    def _handle_click(self) -> None:
         """处理点击事件"""
         if self.on_click_handler:
             self.on_click_handler(self.principle_id)

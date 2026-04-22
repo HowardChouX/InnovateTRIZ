@@ -1,7 +1,35 @@
 # TRIZ Android应用 - 开发进度文档
 
 ## 📅 更新日期
-**最后更新**: 2026年4月20日
+**最后更新**: 2026年4月22日
+
+---
+
+## 🔄 最近更新 (2026-04-22)
+
+### 代码清理与类型修复
+| 文件 | 变更 | 说明 |
+|------|------|------|
+| `src/ui/app_shell.py` | 修改 | `_on_nav_change` 参数改为 `_` 并添加 type ignore |
+| `src/ui/components/principle_card.py` | 修改 | `_handle_click` 移除未使用的 event 参数 |
+| `src/ui/settings_tab/settings_tab.py` | 修改 | 导出功能已移除、类型注解修复 (ft.ControlEvent → ft.Event) |
+| `src/ui/state/app_state.py` | **删除** | 全局应用状态模块已移除，状态管理重构 |
+| `assets/splash_android.png` | 新增 | Android 启动画面图片 |
+
+### 变更详情
+
+#### 1. settings_tab.py 变更
+- 移除 `_export_sessions` 方法及导出按钮
+- 修复 checkbox 类型检查 (添加 `isinstance` 判断)
+- 回调参数类型从 `ft.ControlEvent` 改为 `ft.Event`
+- 添加 type ignore 注释以符合 Flet 类型规范
+
+#### 2. app_state.py 删除
+- 原全局应用状态管理模块已删除
+- 状态管理现由各 Tab 组件自行管理
+
+#### 3. 新增 splash 画面
+- `assets/splash_android.png` 作为 Android 启动画面
 
 ---
 
@@ -62,8 +90,8 @@ triz-app/
 - [x] 会话保存/获取/删除
 - [x] 历史记录管理（分页）
 - [x] 解决方案关联存储
-- [x] 数据导出（JSON/TXT）
 - [x] 统计信息
+- [x] 日志查看功能（内置）
 
 ### 3. 核心层实现 ✅
 
@@ -267,6 +295,12 @@ triz-app/
 │       ├── main_flow.py         # 主流程
 │       ├── parameter_ui.py      # 参数UI组件
 │       ├── solution_ui.py       # 解决方案UI组件
+│       ├── state/
+│       │   ├── __init__.py
+│       │   └── ai_state.py      # AI状态管理（观察者模式）
+│       ├── components/
+│       │   ├── __init__.py
+│       │   └── principle_card.py # 原理卡片组件
 │       ├── matrix_tab/
 │       │   ├── __init__.py
 │       │   └── matrix_page.py   # 矩阵Tab (1151行)

@@ -84,8 +84,8 @@ class MatrixTab(TabContent):
         super().__init__("matrix")
 
     def _show_snack_bar(
-        self, message: str, duration: int = 3000
-    ) -> None:  # noqa: ARG002
+        self, message: str, duration: int = 3000  # noqa: ARG002
+    ) -> None:
         """显示弹窗提示消息"""
         dlg = ft.AlertDialog(
             modal=True,
@@ -194,7 +194,7 @@ class MatrixTab(TabContent):
         self.improving_btn = ft.Button(
             content=ft.Text("选择改善参数"),
             icon=ft.icons.Icons.TRENDING_UP,
-            on_click=lambda e: self._show_param_picker("improving"),
+            on_click=lambda _: self._show_param_picker("improving"),
             style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=COLORS["primary"]),
             scale=0.85,
         )
@@ -202,7 +202,7 @@ class MatrixTab(TabContent):
         self.worsening_btn = ft.Button(
             content=ft.Text("选择恶化参数"),
             icon=ft.icons.Icons.TRENDING_DOWN,
-            on_click=lambda e: self._show_param_picker("worsening"),
+            on_click=lambda _: self._show_param_picker("worsening"),
             style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=COLORS["secondary"]),
             scale=0.85,
         )
@@ -355,7 +355,7 @@ class MatrixTab(TabContent):
                                 spacing=5,
                             ),
                             expand=1,
-                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border=ft.Border.all(1, ft.Colors.GREY_300),
                             border_radius=10,
                             padding=5,
                         ),
@@ -374,7 +374,7 @@ class MatrixTab(TabContent):
                                 spacing=5,
                             ),
                             expand=1,
-                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border=ft.Border.all(1, ft.Colors.GREY_300),
                             border_radius=10,
                             padding=5,
                         ),
@@ -388,7 +388,7 @@ class MatrixTab(TabContent):
         """问题描述变化"""
         self.problem_text = e.control.value.strip()
 
-    async def _on_ai_analyze_params(self, e: ft.Event) -> None:
+    async def _on_ai_analyze_params(self, e: ft.Event) -> None:  # noqa: ARG002
         """AI分析参数按钮点击"""
         # Guard: ensure UI components are initialized
         if not self.improving_text or not self.worsening_text:
@@ -554,6 +554,7 @@ class MatrixTab(TabContent):
         self, param_type: str, param_values: list[str] | None
     ) -> None:
         """参数选中回调"""
+        logger.info(f"_on_param_selected: type={param_type}, values={param_values}")
         assert self.improving_text is not None
         assert self.worsening_text is not None
         if param_type == "improving":
@@ -581,11 +582,13 @@ class MatrixTab(TabContent):
 
         self._page.update()
 
-    async def _on_analyze(self, e: ft.Event) -> None:
+    async def _on_analyze(self, e: ft.Event) -> None:  # noqa: ARG002
         """开始分析"""
         assert self.loading_indicator is not None
         assert self.analyze_btn is not None
         problem = self.problem_input.value.strip() if self.problem_input else ""
+
+        logger.info(f"_on_analyze开始: improving_params={self.improving_params}, worsening_params={self.worsening_params}")
 
         # 至少需要问题描述或参数选择之一
         if not problem and not self.improving_params and not self.worsening_params:
@@ -664,7 +667,7 @@ class MatrixTab(TabContent):
             self.analyze_btn.disabled = False
             self._page.update()
 
-    async def _on_brainstorm(self, e: ft.Event) -> None:
+    async def _on_brainstorm(self, e: ft.Event) -> None:  # noqa: ARG002
         """头脑风暴按钮点击处理"""
         assert self.loading_indicator is not None
         assert self.brainstorm_btn is not None
@@ -849,7 +852,7 @@ class MatrixTab(TabContent):
     def _create_save_selected_button(self) -> ft.Container:
         """创建保存选中按钮"""
 
-        def save_selected(e: ft.ControlEvent) -> None:
+        def save_selected(e: ft.Event[Any]) -> None:  # noqa: ARG002
             logger.info(f"save_selected called, selected: {self._selected_solutions}")
 
             if not self._selected_solutions:
@@ -941,7 +944,7 @@ class MatrixTab(TabContent):
         )
 
         # 点击处理：获取完整详情并显示弹窗
-        def show_detail(e: ft.ControlEvent) -> None:
+        def show_detail(e: ft.Event[Any]) -> None:  # noqa: ARG002
             # 如果传入的是Solution，需要通过principle_id获取完整详情
             if isinstance(principle, InventivePrinciple):
                 full_principle: InventivePrinciple | None = principle
@@ -1020,7 +1023,7 @@ class MatrixTab(TabContent):
             padding=12,
             border_radius=8,
             bgcolor=ft.Colors.GREY_100,
-            border=ft.border.all(1, ft.Colors.GREY_300),
+            border=ft.Border.all(1, ft.Colors.GREY_300),
             on_click=show_detail,
         )
 
@@ -1043,14 +1046,14 @@ class MatrixTab(TabContent):
         expected_effect = getattr(solution, "expected_effect", "")
 
         # 复选框切换选中状态
-        def toggle_selection(e: ft.ControlEvent) -> None:
+        def toggle_selection(e: ft.Event[Any]) -> None:  # noqa: ARG002
             if solution_index in self._selected_solutions:
                 self._selected_solutions.remove(solution_index)
             else:
                 self._selected_solutions.append(solution_index)
 
         # 点击显示解决方案详情弹窗
-        def show_solution_detail(e: ft.ControlEvent) -> None:
+        def show_solution_detail(e: ft.Event[Any]) -> None:  # noqa: ARG002
             self._show_solution_detail_dialog(
                 principle_id=solution_id,
                 principle_name=solution_name,
@@ -1184,7 +1187,7 @@ class MatrixTab(TabContent):
             padding=12,
             border_radius=8,
             bgcolor=ft.Colors.GREY_100,
-            border=ft.border.all(1, ft.Colors.GREY_300),
+            border=ft.Border.all(1, ft.Colors.GREY_300),
             on_click=show_solution_detail,
         )
 
@@ -1197,7 +1200,7 @@ class MatrixTab(TabContent):
         technical_solution: str,
         innovation_point: str,
         cross_domain_cases: list[str],
-        expected_effect: str,
+        expected_effect: str,  # noqa: ARG002
         ai_label: str,
         conf_text: str,
     ) -> ft.Column:
@@ -1490,7 +1493,7 @@ class MatrixTab(TabContent):
                 height=500,
                 padding=10,
             ),
-            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
+            actions=[ft.TextButton("关闭", on_click=lambda _: self._close_dialog())],
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
@@ -1581,7 +1584,7 @@ class MatrixTab(TabContent):
                 height=350,
                 padding=10,
             ),
-            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
+            actions=[ft.TextButton("关闭", on_click=lambda _: self._close_dialog())],
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
@@ -1734,7 +1737,7 @@ class MatrixTab(TabContent):
                 height=450,
                 padding=10,
             ),
-            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
+            actions=[ft.TextButton("关闭", on_click=lambda _: self._close_dialog())],
             actions_alignment=ft.MainAxisAlignment.END,
         )
 

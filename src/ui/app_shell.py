@@ -93,7 +93,7 @@ class TRIZAppShell:
 
         logger.info("应用外壳显示完成")
 
-    def _on_nav_change(self, e: ft.NavigationBar) -> None:
+    def _on_nav_change(self, _) -> None:  # type: ignore
         """导航栏切换处理"""
         index = self._nav_bar.selected_index if self._nav_bar else 0
         tab_map = {
@@ -107,18 +107,6 @@ class TRIZAppShell:
     def _switch_tab(self, tab_id: str) -> None:
         """切换Tab"""
         logger.info(f"_switch_tab called with: {tab_id}")
-
-        # 关闭所有打开的对话框（安全方式，避免无限循环）
-        dialogs_closed = 0
-        for _ in range(10):
-            try:
-                self.page.pop_dialog()
-                dialogs_closed += 1
-                logger.info("Closed dialog")
-            except Exception:
-                break
-        if dialogs_closed == 0:
-            logger.debug("No dialogs to close")
 
         # 隐藏当前Tab
         if self._current_tab and self._current_tab in self._tab_registry:

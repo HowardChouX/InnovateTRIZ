@@ -170,7 +170,7 @@ class SolutionListView:
                         ),
                         ft.Container(
                             content=ft.Text(problem, size=14),
-                            padding=ft.padding.only(top=5, bottom=10),
+                            padding=ft.Padding.only(top=5, bottom=10),
                         ),
                         ft.Divider(),
                         ft.Row(
@@ -286,7 +286,7 @@ class SolutionListView:
                     ],
                     spacing=10,
                 ),
-                padding=ft.padding.only(top=10, bottom=5),
+                padding=ft.Padding.only(top=10, bottom=5),
             )
             cards.append(category_header)
 
@@ -387,7 +387,7 @@ class SolutionListView:
                             content=ft.Text(
                                 solution.description, size=13, color=ft.Colors.GREY_800
                             ),
-                            padding=ft.padding.only(bottom=10),
+                            padding=ft.Padding.only(bottom=10),
                         ),
                         # AI标签
                         ft.Row(
@@ -423,7 +423,7 @@ class SolutionListView:
                                 color=ft.Colors.GREY_600,
                                 italic=True,
                             ),
-                            padding=ft.padding.only(top=10),
+                            padding=ft.Padding.only(top=10),
                             visible=bool(examples_text),
                         ),
                     ],

@@ -91,7 +91,7 @@ class ParameterPicker:
         """
         self.page = page
         self.param_type = param_type
-        self.current_values = current_values or []
+        self.current_values = list(current_values) if current_values else []
         self.on_selected = on_selected
         self.multi_select = multi_select
 
@@ -107,6 +107,7 @@ class ParameterPicker:
     def show(self) -> None:
         """显示参数选择弹窗"""
         self._create_dialog()
+        assert self.dialog is not None
         self.page.show_dialog(self.dialog)
 
     def _create_dialog(self) -> None:
@@ -123,8 +124,7 @@ class ParameterPicker:
         self.search_field = ft.TextField(
             hint_text="搜索参数...",
             prefix_icon=ft.icons.Icons.SEARCH,
-            on_change=self._on_search_input,
-            autofocus=True,
+            on_change=self._on_search_input,  # type: ignore[reportArgumentType]
         )
 
         # 清除按钮
@@ -180,6 +180,7 @@ class ParameterPicker:
 
     def _on_search_input(self, e: ft.ControlEvent) -> None:
         """搜索框输入处理（实时搜索）"""
+        assert isinstance(e.control, ft.TextField)
         query = e.control.value.strip().lower()
         self._filter_params(query)
         self._update_param_list()
@@ -215,7 +216,7 @@ class ParameterPicker:
                     weight=ft.FontWeight.BOLD,
                     color=COLORS["primary"],
                 ),
-                padding=ft.padding.only(top=12, bottom=6),
+                padding=ft.Padding.only(top=12, bottom=6),
             )
             self.content_column.controls.append(category_header)
 
@@ -264,7 +265,7 @@ class ParameterPicker:
             padding=12,
             border_radius=8,
             bgcolor=bg_color,
-            border=ft.border.all(1, border_color),
+            border=ft.Border.all(1, border_color),
             on_click=lambda _, p=param: self._on_param_click(p),
         )
 

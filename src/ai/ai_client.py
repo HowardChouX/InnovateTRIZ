@@ -3,9 +3,13 @@ AI客户端模块
 支持DeepSeek API，兼容OpenRouter API
 """
 
+import json
 import logging
 from datetime import datetime
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 try:
     from openai import (  # type: ignore[import-not-found]
@@ -17,9 +21,9 @@ try:
     _OPENAI_AVAILABLE = True
 except ImportError:
     _OPENAI_AVAILABLE = False
-    APIConnectionError = None
-    APIError = None
-    APITimeoutError = None
+    APIConnectionError = Exception
+    APIError = Exception
+    APITimeoutError = Exception
     AsyncOpenAI = None
 
 from ..config.constants import (
@@ -72,6 +76,9 @@ class AIClient:
             self.client = None
             return
 
+        # Type narrowing: AsyncOpenAI is not None when _OPENAI_AVAILABLE is True
+        assert AsyncOpenAI is not None
+
         try:
             if self.base_url:
                 base_url = self.base_url
@@ -111,10 +118,10 @@ class AIClient:
         if not self.is_available():
             return False
 
+        assert self.client is not None
         try:
             # 发送一个简单的测试请求
-            client = cast(AsyncOpenAI, self.client)
-            response = await client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=10,
@@ -142,6 +149,7 @@ class AIClient:
             logger.warning("AI不可用，降级到本地引擎")
             return self._local_detect_parameters(problem)
 
+        assert self.client is not None
         # 使用constants中正确定义的39工程参数
         params_39 = ENGINEERING_PARAMETERS_39
         params_str = "\n".join([f"{i+1}. {p}" for i, p in enumerate(params_39)])
@@ -173,8 +181,7 @@ JSON格式（严格按照这个格式）：
             try:
                 start_time = datetime.now()
 
-                client = cast(AsyncOpenAI, self.client)
-                response = await client.chat.completions.create(
+                response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -190,8 +197,6 @@ JSON格式（严格按照这个格式）：
                 logger.info(f"AI原始响应(尝试{attempt + 1}): {content}")
 
                 # 解析JSON
-                import json
-
                 json_start = content.find("{")
                 json_end = content.rfind("}") + 1
                 if json_start < 0 or json_end <= json_start:
@@ -229,8 +234,6 @@ JSON格式（严格按照这个格式）：
 
             except json.JSONDecodeError as e:
                 logger.error(f"JSON解析失败: {e}, 尝试{attempt + 1}/{max_retries}")
-                if attempt == max_retries - 1:
-                    return self._local_detect_parameters(problem)
             except APITimeoutError:
                 logger.error("AI请求超时")
                 return self._local_detect_parameters(problem)
@@ -277,14 +280,14 @@ JSON格式（严格按照这个格式）：
                 success=False, solutions=[], error_message="AI服务不可用"
             )
 
+        assert self.client is not None
         # 构建提示词
         prompt = self._build_solution_prompt(request)
 
         try:
             start_time = datetime.now()
 
-            client = cast(AsyncOpenAI, self.client)
-            response = await client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,  # 稍高的温度以获得创造性
@@ -345,6 +348,7 @@ JSON格式（严格按照这个格式）：
             logger.warning("AI服务不可用，无法生成解决方案")
             return None
 
+        assert self.client is not None
         from .prompts.builder import PromptBuilder
 
         builder = PromptBuilder()
@@ -356,8 +360,7 @@ JSON格式（严格按照这个格式）：
         )
 
         try:
-            client = cast(AsyncOpenAI, self.client)
-            response = await client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
@@ -404,7 +407,6 @@ JSON格式（严格按照这个格式）：
         solutions = []
 
         try:
-            import json
             import re
 
             logger.info(f"AI原始响应长度: {len(content)}")
@@ -426,6 +428,12 @@ JSON格式（严格按照这个格式）：
                     if isinstance(data, list):
                         logger.info(f"策略1成功: 直接解析{len(data)}个解决方案")
                         for item in data:
+                            # 如果item是字符串，尝试再次解析
+                            if isinstance(item, str):
+                                try:
+                                    item = json.loads(item)
+                                except json.JSONDecodeError:
+                                    continue
                             sol = self._parse_single_solution(item, principle_ids)
                             if sol:
                                 solutions.append(sol)
@@ -441,6 +449,12 @@ JSON格式（严格按照这个格式）：
                             if isinstance(data, list):
                                 logger.info(f"截断修复成功: 解析{len(data)}个解决方案")
                                 for item in data:
+                                    # 如果item是字符串，尝试再次解析
+                                    if isinstance(item, str):
+                                        try:
+                                            item = json.loads(item)
+                                        except json.JSONDecodeError:
+                                            continue
                                     sol = self._parse_single_solution(
                                         item, principle_ids
                                     )
@@ -680,9 +694,9 @@ class AIManager:
         if not self.is_enabled():
             return False
 
+        assert self.client is not None
         try:
-            client = cast(AIClient, self.client)
-            return await client.test_connection()
+            return await self.client.test_connection()
         except Exception as e:
             logger.error(f"测试AI连接失败: {e}")
             return False

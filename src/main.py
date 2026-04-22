@@ -294,11 +294,11 @@ def main():
                 TRIZApp().main,
                 view=ft.AppView.WEB_BROWSER,
                 port=args.port,
-                assets_dir="assets",
+                assets_dir="src/assets",
             )
         else:
             # 桌面/APK模式 - Flet自动根据运行平台选择
-            ft.run(TRIZApp().main, assets_dir="assets")
+            ft.run(TRIZApp().main, assets_dir="src/assets")
 
     except KeyboardInterrupt:
         print("\n👋 应用已退出")

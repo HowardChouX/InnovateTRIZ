@@ -67,7 +67,7 @@ flet build aab
 └── TRIZAppShell.show()                        # 3-Tab 导航外壳
         ├── MatrixTab          # Tab1: 矛盾矩阵分析（主功能）
         ├── PrinciplesTab      # Tab2: 40 发明原理库
-        └── SettingsTab        # Tab3: 全局设置 + 历史管理
+        └── SettingsTab        # Tab3: 全局设置 + 历史管理（查看日志、清空全部）
 ```
 
 ### UI 层级
@@ -100,13 +100,31 @@ flet build aab
 - `AIClient` 封装 `AsyncOpenAI`，支持 DeepSeek（默认）、OpenRouter 等 OpenAI 兼容接口
 - `AIManager` 管理连接状态：`is_enabled()` = 已配置，`is_connected()` = 实际可用
 - 多提供商配置存储在 `config.json`，通过 `AppSettings.ai_providers_config` 管理
-- `LocalTRIZEngine.detect_parameters()` 用关键词权重匹配作为 AI 的降级方案
+- **AI 参数检测**（`AIClient.detect_parameters`）：
+  - 严格的 prompt 要求 AI 必须从 39 个工程参数中精确选择，不允许创造/缩写参数名
+  - temperature=0 确保确定性输出
+  - 最多重试 2 次，如果 AI 返回参数为空则重新思考
+  - AI 不可用或所有重试失败时自动降级到本地引擎（`LocalTRIZEngine.detect_parameters`）
 - **头脑风暴遍历注入**：`TRIZEngine.generate_solutions_iterative()` 遍历每个原理单独调用 AI
 
 ### 矛盾矩阵
 
 - **39 矛盾矩阵**：完整实现，1189 条记录
 - **48 矛盾矩阵**：预留接口，UI 可切换但功能未实现
+
+## 待开发功能
+
+以下功能已设计但尚未实现：
+
+| 功能 | 描述 | 相关文件 |
+|------|------|----------|
+| **48 矛盾矩阵** | 48个工程参数的矛盾矩阵查询 | `src/core/matrix_selector.py` |
+| **功能分析** | 分析技术系统的组件、功能和关系 | `builder.py` (已删除) |
+| **物质-场分析** | 识别S1-S2-F模型并应用标准解 | `templates.py` |
+| **76标准解应用** | 基于物质-场分析推荐标准解 | `templates.py` |
+| **物理矛盾求解** | 分离原理求解物理矛盾 | `builder.py` (已删除) |
+
+实现优先级：48矛盾矩阵 > 功能分析 > 物质-场分析 > 76标准解 > 物理矛盾
 
 ### 提示词系统
 

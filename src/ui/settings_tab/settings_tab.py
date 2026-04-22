@@ -5,8 +5,6 @@
 
 import logging
 from collections.abc import Callable
-from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import flet as ft
@@ -121,18 +119,19 @@ class SettingsTab(TabContent):
 
         # 全选复选框 - 在history_list创建后定义回调
         def on_select_all_changed(e: ft.ControlEvent) -> None:
-            if e.control.value and self.history_list:
+            cb = e.control
+            if isinstance(cb, ft.Checkbox) and cb.value and self.history_list:
                 for ctrl in self.history_list.controls:
                     if hasattr(ctrl, "key") and ctrl.key:
-                        self._selected_histories.add(ctrl.key)
+                        self._selected_histories.add(str(ctrl.key))
             else:
                 self._selected_histories.clear()
             self._update_delete_button()
 
-        def close_dlg(_: ft.ControlEvent) -> None:
+        def close_dlg(_: ft.Event) -> None:
             self._page.pop_dialog()
 
-        def confirm_delete(_: ft.ControlEvent) -> None:
+        def confirm_delete(_: ft.Event) -> None:
             deleted_count = len(self._selected_histories)
             for session_id in list(self._selected_histories):
                 self.storage.delete_session(session_id)
@@ -154,10 +153,10 @@ class SettingsTab(TabContent):
                     f"确定要删除选中的 {len(self._selected_histories)} 条历史记录吗？"
                 ),
                 actions=[
-                    ft.TextButton("取消", on_click=close_dlg),
-                    ft.TextButton(
+                    ft.TextButton("取消", on_click=close_dlg),  # type: ignore[arg-type]
+                    ft.TextButton(  # type: ignore[arg-type]
                         "删除",
-                        on_click=confirm_delete,
+                        on_click=confirm_delete,  # type: ignore[arg-type]
                         style=ft.ButtonStyle(color=ft.Colors.RED),
                     ),
                 ],
@@ -166,7 +165,7 @@ class SettingsTab(TabContent):
             self._page.show_dialog(dlg)
 
         self.select_all_cb = ft.Checkbox(
-            label="全选", value=False, on_change=on_select_all_changed
+            label="全选", value=False, on_change=on_select_all_changed  # type: ignore[arg-type]
         )
 
         # 删除选中按钮
@@ -205,22 +204,12 @@ class SettingsTab(TabContent):
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            padding=ft.padding.only(top=15, left=15, right=15, bottom=5),
+            padding=ft.Padding.only(top=15, left=15, right=15, bottom=5),
         )
 
         # 管理操作按钮
         self.manage_buttons = ft.Row(
             controls=[
-                ft.TextButton(
-                    content=ft.Text("导出JSON"),
-                    icon=ft.icons.Icons.DOWNLOAD,
-                    on_click=lambda _: self._export_sessions("json"),
-                ),
-                ft.TextButton(
-                    content=ft.Text("导出TXT"),
-                    icon=ft.icons.Icons.DOWNLOAD,
-                    on_click=lambda _: self._export_sessions("txt"),
-                ),
                 ft.TextButton(
                     content=ft.Text("查看日志"),
                     icon=ft.icons.Icons.DESCRIPTION,
@@ -461,58 +450,6 @@ class SettingsTab(TabContent):
         self._log_dialog = None
         self._page.pop_dialog()
 
-    def _export_sessions(self, format: str) -> None:
-        """导出会话"""
-        content = self.storage.export_all_sessions(format)
-        if not content:
-            self._show_snack_bar("没有可导出的历史记录")
-            return
-
-        import os
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_filename = f"triz_history_{timestamp}.{format}"
-
-        # 使用 FLET_APP_STORAGE_DATA 路径
-        app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
-        if app_data_path:
-            exports_dir = os.path.join(app_data_path, "exports")
-        else:
-            # Fallback: 使用 XDG_CONFIG_HOME
-            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(
-                Path.home(), ".config"
-            )
-            exports_dir = os.path.join(config_home, "triz-assistant", "exports")
-
-        # 安全验证：使用 resolve() 和目录相等性检查防止路径遍历
-        try:
-            exports_path = Path(exports_dir).resolve()
-            if app_data_path:
-                allowed_base = Path(app_data_path).resolve()
-            else:
-                allowed_base = Path.cwd().resolve()
-
-            # 确保导出目录在允许的基础目录内
-            if not str(exports_path).startswith(str(allowed_base) + os.sep):
-                logger.warning(f"导出路径不安全: {exports_path}")
-                self._show_snack_bar("导出路径无效")
-                return
-        except Exception as ex:
-            logger.warning(f"路径解析失败: {ex}")
-            self._show_snack_bar("导出路径无效")
-            return
-
-        os.makedirs(exports_path, exist_ok=True)
-        filepath = exports_path / safe_filename
-
-        try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(content)
-            self._show_snack_bar("导出成功")
-        except Exception as ex:
-            logger.error(f"导出失败: {ex}")
-            self._show_snack_bar("导出失败")
-
     def _confirm_clear_all(self, _: ft.ControlEvent | None = None) -> None:
         """确认清空所有历史"""
 
@@ -620,7 +557,7 @@ class SettingsTab(TabContent):
         status_text = "AI" if ai_enabled else "本地"
 
         # 复选框切换选中状态
-        def on_checkbox_changed(_: ft.ControlEvent) -> None:
+        def on_checkbox_changed(_: ft.Event) -> None:
             if session_id in self._selected_histories:
                 self._selected_histories.discard(session_id)
             else:
@@ -638,7 +575,7 @@ class SettingsTab(TabContent):
                 )
 
         checkbox = ft.Checkbox(
-            value=session_id in self._selected_histories, on_change=on_checkbox_changed
+            value=session_id in self._selected_histories, on_change=on_checkbox_changed  # type: ignore[arg-type]
         )
 
         return ft.Card(
@@ -860,7 +797,7 @@ class SettingsTab(TabContent):
                         ],
                         spacing=5,
                     ),
-                    padding=ft.padding.only(top=10, bottom=5),
+                    padding=ft.Padding.only(top=10, bottom=5),
                 )
             )
 
@@ -923,14 +860,14 @@ class SettingsTab(TabContent):
                     card_content.append(
                         ft.Container(
                             content=ft.Text(tech_solution, size=12, color=ft.Colors.GREY_800),
-                            padding=ft.padding.only(bottom=5),
+                            padding=ft.Padding.only(bottom=5),
                         )
                     )
                 elif s.description:
                     card_content.append(
                         ft.Container(
                             content=ft.Text(s.description, size=12, color=ft.Colors.GREY_800),
-                            padding=ft.padding.only(bottom=5),
+                            padding=ft.Padding.only(bottom=5),
                         )
                     )
 
@@ -945,7 +882,7 @@ class SettingsTab(TabContent):
                                 ],
                                 spacing=2,
                             ),
-                            padding=ft.padding.only(top=5, bottom=5),
+                            padding=ft.Padding.only(top=5, bottom=5),
                         )
                     )
 
@@ -981,7 +918,7 @@ class SettingsTab(TabContent):
                                 color=ft.Colors.GREY_600,
                                 italic=True,
                             ),
-                            padding=ft.padding.only(top=5),
+                            padding=ft.Padding.only(top=5),
                         )
                     )
 

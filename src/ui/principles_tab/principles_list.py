@@ -77,7 +77,7 @@ class PrinciplesTab(TabContent):
                     content=ft.Text(c, size=13, weight=ft.FontWeight.W_500),
                     padding=ft.padding.symmetric(vertical=8, horizontal=14),
                     border_radius=16,
-                    border=ft.border.all(1.5, ft.Colors.GREY_400),
+                    border=ft.Border.all(1.5, ft.Colors.GREY_400),
                     bgcolor=(
                         COLORS["primary"]
                         if c == self.selected_category
@@ -234,7 +234,7 @@ class PrinciplesTab(TabContent):
             padding=12,
             border_radius=8,
             bgcolor=ft.Colors.GREY_100,
-            border=ft.border.all(1, ft.Colors.GREY_300),
+            border=ft.Border.all(1, ft.Colors.GREY_300),
             on_click=lambda _, p=principle: self._on_principle_click(p),
         )
 

@@ -489,45 +489,45 @@ INVENTIVE_PRINCIPLES = {
 
 # 39个标准工程参数
 ENGINEERING_PARAMETERS_39 = {
-    1: "Weight of moving object",
-    2: "Weight of stationary object",
-    3: "Length of moving object",
-    4: "Length of stationary object",
-    5: "Area of moving object",
-    6: "Area of stationary object",
-    7: "Volume of moving object",
-    8: "Volume of stationary object",
-    9: "Speed",
-    10: "Force",
-    11: "Stress or pressure",
-    12: "Shape",
-    13: "Stability of object",
-    14: "Strength",
-    15: "Durability of moving object",
-    16: "Durability of stationary object",
-    17: "Temperature",
-    18: "Illumination",
-    19: "Energy consumption of moving object",
-    20: "Energy consumption of stationary object",
-    21: "Power",
-    22: "Loss of energy",
-    23: "Loss of substance",
-    24: "Loss of information",
-    25: "Loss of time",
-    26: "Quantity of substance",
-    27: "Quantity of information",
-    28: "Reliability",
-    29: "Measurement precision",
-    30: "Manufacturing precision",
-    31: "Object-affected harmful factors",
-    32: "Object-created harmful factors",
-    33: "Ease of manufacture",
-    34: "Ease of operation",
-    35: "Ease of repair",
-    36: "Adaptability or versatility",
-    37: "Device complexity",
-    38: "Difficulty of detecting/measuring",
-    39: "Extent of automation",
+    1: "移动物体的重量",
+    2: "静止物体的重量",
+    3: "移动物体的长度",
+    4: "静止物体的长度",
+    5: "移动物体的面积",
+    6: "静止物体的面积",
+    7: "移动物体的体积",
+    8: "静止物体的体积",
+    9: "速度",
+    10: "力",
+    11: "张力/压力",
+    12: "形状",
+    13: "物体的稳定性",
+    14: "强度",
+    15: "移动物体的持久性",
+    16: "静止物体的持久性",
+    17: "温度",
+    18: "亮度",
+    19: "移动物体用的能源",
+    20: "非移动物体用的能源",
+    21: "功率",
+    22: "能源的浪费",
+    23: "物质的浪费",
+    24: "信息的流失",
+    25: "时间的浪费",
+    26: "物质的总量",
+    27: "可靠性",
+    28: "测量的准度",
+    29: "制造的准度",
+    30: "作用于物体的有害因素",
+    31: "有害的副作用",
+    32: "制造性",
+    33: "使用的便利性",
+    34: "修复性",
+    35: "适应性",
+    36: "设备的复杂性",
+    37: "控制的复杂性",
+    38: "自动化程度",
+    39: "产能/生产力",
 }
 
 
@@ -551,28 +551,28 @@ From the contradiction:
 ### Step 4: Generalize to Typical Parameters
 Map your specific parameters to the 39 standard Altshuller parameters:
 
-| # | Parameter | # | Parameter |
+| # | 参数 | # | 参数 |
 |---|-----------|---|-----------|
-| 1 | Weight of moving object | 21 | Power |
-| 2 | Weight of stationary object | 22 | Loss of energy |
-| 3 | Length of moving object | 23 | Loss of substance |
-| 4 | Length of stationary object | 24 | Loss of information |
-| 5 | Area of moving object | 25 | Loss of time |
-| 6 | Area of stationary object | 26 | Quantity of substance |
-| 7 | Volume of moving object | 27 | Quantity of information |
-| 8 | Volume of stationary object | 28 | Reliability |
-| 9 | Speed | 29 | Measurement precision |
-| 10 | Force | 30 | Manufacturing precision |
-| 11 | Stress or pressure | 31 | Object-affected harmful factors |
-| 12 | Shape | 32 | Object-created harmful factors |
-| 13 | Stability | 33 | Ease of manufacture |
-| 14 | Strength | 34 | Ease of operation |
-| 15 | Durability (moving) | 35 | Ease of repair |
-| 16 | Durability (stationary) | 36 | Adaptability |
-| 17 | Temperature | 37 | Device complexity |
-| 18 | Illumination | 38 | Difficulty of detecting |
-| 19 | Energy consumption (moving) | 39 | Extent of automation |
-| 20 | Energy consumption (stationary) | | |
+| 1 | 移动物体的重量 | 21 | 功率 |
+| 2 | 静止物体的重量 | 22 | 能源的浪费 |
+| 3 | 移动物体的长度 | 23 | 物质的浪费 |
+| 4 | 静止物体的长度 | 24 | 信息的流失 |
+| 5 | 移动物体的面积 | 25 | 时间的浪费 |
+| 6 | 静止物体的面积 | 26 | 物质的总量 |
+| 7 | 移动物体的体积 | 27 | 可靠性 |
+| 8 | 静止物体的体积 | 28 | 测量的准度 |
+| 9 | 速度 | 29 | 制造的准度 |
+| 10 | 力 | 30 | 作用于物体的有害因素 |
+| 11 | 张力/压力 | 31 | 有害的副作用 |
+| 12 | 形状 | 32 | 制造性 |
+| 13 | 物体的稳定性 | 33 | 使用的便利性 |
+| 14 | 强度 | 34 | 修复性 |
+| 15 | 移动物体的持久性 | 35 | 适应性 |
+| 16 | 静止物体的持久性 | 36 | 设备的复杂性 |
+| 17 | 温度 | 37 | 控制的复杂性 |
+| 18 | 亮度 | 38 | 自动化程度 |
+| 19 | 移动物体用的能源 | 39 | 产能/生产力 |
+| 20 | 非移动物体用的能源 | | |
 
 ### Step 5: Matrix Lookup
 Use the Altshuller Contradiction Matrix to find recommended inventive principles:
@@ -591,20 +591,20 @@ Based on the principles, propose specific solutions:
 - Explain WHY each solution applies the principle
 - Consider component-level, system-level, and environment-level applications
 
-## Example: Backpack Problem
-**Problem**: Large backpack but lightweight
+## 示例：背包问题
+**问题**: 大容量但轻便的背包
 
-**Step 1**: IF backpack is large THEN can carry more books BUT increases back fatigue
+**Step 1**: 如果背包大 THEN 能装更多书 BUT 增加背部疲劳
 
-**Step 2**: IF backpack is small THEN less fatigue BUT less storage
+**Step 2**: 如果背包小 THEN 减少疲劳 BUT 存储空间不足
 
-**Step 3**: Improving = "Volume", Worsening = "Ease of operation"
+**Step 3**: 改善参数 = "体积", 恶化参数 = "使用的便利性"
 
-**Step 4**: Improving = #8 Volume of stationary object, Worsening = #34 Ease of operation
+**Step 4**: 改善参数 = #8 静止物体的体积, 恶化参数 = #34 修复性
 
-**Step 5**: Matrix lookup → Principles #7 (Nesting), #2 (Separation), #35 (Parameter Changes)
+**Step 5**: 矩阵查询 → 原理 #7 (嵌套), #2 (分离), #35 (参数变化)
 
-**Step 7**: Solutions using nesting (compartmentalized backpack), separation (detachable compartments), parameter changes (lighter materials)
+**Step 7**: 使用嵌套(分格背包)、分离(可拆卸隔层)、参数变化(轻质材料)等解决方案
 """
 
 
