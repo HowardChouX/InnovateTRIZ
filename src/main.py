@@ -269,7 +269,7 @@ def main():
     parser.add_argument(
         "--mode",
         choices=["web", "desktop", "apk"],
-        default="apk",
+        default="desktop",
         help="运行模式: web(浏览器), desktop(桌面窗口), apk(移动应用)",
     )
     parser.add_argument("--port", type=int, default=8550, help="Web模式端口")

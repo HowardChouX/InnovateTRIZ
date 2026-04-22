@@ -413,6 +413,20 @@ JSON格式（严格按照这个格式）：
             logger.info(f"AI原始响应: {content[:1500]}")
 
             # 策略1: 尝试直接解析整个JSON数组
+            # 先检查内容是否以 { 开头 - 如果是，说明是单个对象而非数组
+            if content.strip().startswith("{"):
+                # 单个对象场景，先尝试直接解析
+                try:
+                    single_data = json.loads(content.strip())
+                    if isinstance(single_data, dict) and "principle_id" in single_data:
+                        sol = self._parse_single_solution(single_data, principle_ids)
+                        if sol:
+                            logger.info(f"策略1成功: 直接解析单个解决方案")
+                            return [sol]
+                except json.JSONDecodeError:
+                    pass  # 继续尝试其他策略
+
+            # 多解决方案场景：查找JSON数组
             json_start = content.find("[")
             json_end = content.rfind("]") + 1
 
@@ -521,7 +535,7 @@ JSON格式（严格按照这个格式）：
         self, item: dict, _principle_ids: list[int]
     ) -> Solution | None:
         """解析单个解决方案对象"""
-        from ..config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
+        from config.constants import INVENTIVE_PRINCIPLES, PRINCIPLE_CATEGORIES
 
         try:
             principle_id = item.get("principle_id", 1)
