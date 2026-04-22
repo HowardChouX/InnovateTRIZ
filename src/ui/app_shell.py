@@ -28,7 +28,6 @@ class TRIZAppShell:
         self.page = page
         self._tab_registry: dict[str, ft.Container] = {}
         self._current_tab: str | None = None
-        self._main_content: ft.Container | None = None
         self._nav_bar: ft.NavigationBar | None = None
         self._settings_tab: object | None = None  # 存储settings_tab引用
 
@@ -51,9 +50,6 @@ class TRIZAppShell:
 
     def show(self) -> None:
         """显示应用外壳"""
-        # 创建主内容容器
-        self._main_content = ft.Container(expand=True)
-
         # 创建导航栏
         self._nav_bar = ft.NavigationBar(
             selected_index=0,
@@ -79,10 +75,17 @@ class TRIZAppShell:
             indicator_color=COLORS.get("primary", "#2196F3"),
         )
 
+        # 顶部状态栏占位（避免被Android状态栏遮挡）
+        self._status_bar = ft.Container(height=38, bgcolor=COLORS.get("primary", "#2196F3"))
+
+        # 添加顶部状态栏
+        self.page.add(self._status_bar)
+
         # 将所有Tab添加到页面
         for container in self._tab_registry.values():
             self.page.add(container)
 
+        # 添加导航栏到页面底部
         self.page.add(self._nav_bar)
 
         # 显示默认Tab

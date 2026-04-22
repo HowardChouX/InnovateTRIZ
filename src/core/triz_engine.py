@@ -1,6 +1,6 @@
 """
-本地TRIZ引擎（无AI版本）
-提供基础的TRIZ分析功能
+TRIZ引擎模块
+提供本地和AI增强的TRIZ分析功能
 """
 
 import logging
@@ -530,8 +530,8 @@ class TRIZEngine:
 
         Args:
             problem: 问题描述
-            improving_param: 改善参数（可选）
-            worsening_param: 恶化参数（可选）
+            improving_param: 改善参数（可选，未提供则自动检测）
+            worsening_param: 恶化参数（可选，未提供则自动检测）
             use_ai: 是否使用AI
             ai_request: AI请求参数（可选）
 
@@ -541,20 +541,15 @@ class TRIZEngine:
         # 创建会话
         session = AnalysisSession(problem=problem, ai_enabled=use_ai)
 
-        # 如果参数未提供，自动检测
+        # 如果任一参数未提供，自动检测缺失的参数
         if not improving_param or not worsening_param:
             detected = self.local_engine.detect_parameters(problem)
-            improving_param = detected["improving"]
-            worsening_param = detected["worsening"]
-            session.improving_param = improving_param
-            session.worsening_param = worsening_param
-        else:
-            # 用户提供了参数，也要设置到session中
-            session.improving_param = improving_param
-            session.worsening_param = worsening_param
+            # 只填充未提供的参数，保留用户提供的
+            improving_param = improving_param or detected["improving"]
+            worsening_param = worsening_param or detected["worsening"]
 
-        # 这里可以添加矩阵查询逻辑
-        # 暂时使用本地引擎生成解决方案
+        session.improving_param = improving_param
+        session.worsening_param = worsening_param
 
         # 创建AI请求（如果需要）
         if use_ai and ai_request:
@@ -626,12 +621,16 @@ class TRIZEngine:
         ai_manager = get_ai_manager()
         ai_client = ai_manager.get_client()
 
+        # AI不可用时，直接使用本地引擎批量生成
         if not ai_client:
-            logger.warning("AI客户端不可用，使用本地引擎生成")
-            return self.local_engine.generate_solutions(
+            logger.info("AI客户端不可用，使用本地引擎生成")
+            solutions = self.local_engine.generate_solutions(
                 principle_ids=principle_ids, problem=problem, count=total
             )
+            return solutions
 
+        # AI可用时，逐个原理生成
+        failed_count = 0
         for i, principle_id in enumerate(principle_ids):
             # 报告进度
             if progress_callback:
@@ -648,15 +647,18 @@ class TRIZEngine:
             if solution:
                 solutions.append(solution)
             else:
-                # 如果AI生成失败，使用本地引擎作为后备
-                logger.warning(f"原理{principle_id}的AI生成失败，使用本地引擎")
+                # AI生成失败，使用本地引擎作为后备
+                failed_count += 1
+                logger.debug(f"原理{principle_id}的AI生成失败，使用本地引擎")
                 local_solutions = self.local_engine.generate_solutions(
                     principle_ids=[principle_id], problem=problem, count=1
                 )
                 if local_solutions:
                     solutions.append(local_solutions[0])
 
-        logger.info(f"遍历生成完成: 共{len(solutions)}/{total}个解决方案")
+        if failed_count > 0:
+            logger.warning(f"遍历生成完成: {failed_count}/{total}个使用本地引擎回退")
+
         return solutions
 
 

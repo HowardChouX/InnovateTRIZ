@@ -58,6 +58,7 @@ class SettingsTab(TabContent):
         self.delete_btn: ft.Button | None = None
         self.select_all_cb: ft.Checkbox | None = None
         self._ai_settings_dialog: AISettingsDialog | None = None
+        self._log_dialog: ft.AlertDialog | None = None
         # 动态文本引用
         self._delete_btn_text: ft.Text | None = None
         self._load_more_btn_text: ft.Text | None = None
@@ -132,14 +133,15 @@ class SettingsTab(TabContent):
             self._page.pop_dialog()
 
         def confirm_delete(_: ft.ControlEvent) -> None:
+            deleted_count = len(self._selected_histories)
             for session_id in list(self._selected_histories):
                 self.storage.delete_session(session_id)
-            self._show_snack_bar(f"已删除 {len(self._selected_histories)} 条记录")
             self._selected_histories.clear()
             self._offset = 0
-            self._build_ui()
-            self._load_history()
-            self._page.pop_dialog()
+            self._page.pop_dialog()  # 先关闭确认对话框
+            self._build_ui()  # 重新构建UI
+            self._load_history()  # 重新加载历史
+            self._show_snack_bar(f"已删除 {deleted_count} 条记录")
 
         def on_delete_click() -> None:
             if not self._selected_histories:
@@ -436,11 +438,28 @@ class SettingsTab(TabContent):
 
         dialog = ft.AlertDialog(
             content=dialog_content,
-            actions=[ft.TextButton("关闭", on_click=lambda _: self._close_dialog())],
+            actions=[
+                ft.TextButton(
+                    "关闭",
+                    on_click=lambda _: self._close_log_dialog(),
+                )
+            ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
+        # 关闭已存在的日志对话框，避免重复打开
+        if self._log_dialog is not None:
+            try:
+                self._page.pop_dialog()
+            except Exception:
+                pass
+        self._log_dialog = dialog
         self._page.show_dialog(dialog)
+
+    def _close_log_dialog(self) -> None:
+        """关闭日志对话框"""
+        self._log_dialog = None
+        self._page.pop_dialog()
 
     def _export_sessions(self, format: str) -> None:
         """导出会话"""
@@ -730,146 +749,260 @@ class SettingsTab(TabContent):
                 self._show_snack_bar("会话ID无效")
 
     def _show_session_detail(self, session: AnalysisSession) -> None:
-        """显示会话详情（卡片形式）"""
-        # 头部信息
-        header = ft.Container(
+        """显示会话详情（增强版，类似头脑风暴展示）"""
+        from ...config.constants import PRINCIPLE_CATEGORIES
+
+        # 计算统计信息
+        total = len(session.solutions)
+        avg_confidence = sum(s.confidence for s in session.solutions) / total if total > 0 else 0
+        ai_count = sum(1 for s in session.solutions if getattr(s, "is_ai_generated", False))
+
+        # 按原理分类
+        categorized: dict[str, list] = {cat: [] for cat in PRINCIPLE_CATEGORIES.keys()}
+        categorized["其他"] = []
+        for s in session.solutions:
+            placed = False
+            for cat, pids in PRINCIPLE_CATEGORIES.items():
+                if s.principle_id in pids:
+                    categorized[cat].append(s)
+                    placed = True
+                    break
+            if not placed:
+                categorized["其他"].append(s)
+        categorized = {k: v for k, v in categorized.items() if v}
+
+        # 统计信息行
+        stats_row = ft.Container(
+            content=ft.Row(
+                controls=[
+                    self._create_detail_stat_item("总方案", str(total)),
+                    self._create_detail_stat_item("置信度", f"{avg_confidence:.0%}"),
+                    self._create_detail_stat_item("分类", str(len(categorized))),
+                    self._create_detail_stat_item("AI生成", str(ai_count)),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_EVENLY,
+                spacing=5,
+            ),
+            padding=10,
+            bgcolor=ft.Colors.GREY_100,
+            border_radius=8,
+        )
+
+        # 问题摘要
+        problem_card = ft.Container(
             content=ft.Column(
-                [
+                controls=[
                     ft.Row(
-                        [
-                            ft.Text("问题:", size=13, weight=ft.FontWeight.BOLD),
+                        controls=[
+                            ft.Icon(ft.icons.Icons.LIGHTBULB, color=COLORS["accent"], size=16),
+                            ft.Text("问题摘要", size=14, weight=ft.FontWeight.BOLD),
                             ft.Container(expand=True),
-                            ft.Text(
-                                "🤖 AI" if session.ai_enabled else "📦 本地",
-                                size=11,
-                                color=(
-                                    ft.Colors.GREEN
-                                    if session.ai_enabled
-                                    else ft.Colors.GREY
+                            ft.Container(
+                                content=ft.Text(
+                                    "🤖 AI" if session.ai_enabled else "📦 本地",
+                                    size=10,
+                                    color=ft.Colors.GREEN if session.ai_enabled else ft.Colors.GREY,
                                 ),
+                                padding=3,
                             ),
                         ]
                     ),
-                    ft.Text(
-                        session.problem,
-                        size=12,
-                        max_lines=3,
-                        overflow=ft.TextOverflow.ELLIPSIS,
-                    ),
+                    ft.Text(session.problem, size=12),
                     ft.Divider(),
                     ft.Row(
-                        [
+                        controls=[
                             ft.Text(
                                 f"改善: {session.improving_param or '自动'}",
-                                size=11,
-                                color=ft.Colors.GREY,
+                                size=11, color=ft.Colors.GREY,
                             ),
                             ft.Text(
                                 f"恶化: {session.worsening_param or '自动'}",
-                                size=11,
-                                color=ft.Colors.GREY,
+                                size=11, color=ft.Colors.GREY,
                             ),
-                        ]
+                        ],
+                        spacing=10,
                     ),
                     ft.Text(
-                        f"{session.matrix_type}矩阵 | {len(session.solutions)}个方案",
-                        size=11,
-                        color=ft.Colors.GREY,
-                    ),
-                    ft.Text(
-                        f"时间: {session.created_at.strftime('%Y-%m-%d %H:%M:%S')}",
-                        size=10,
-                        color=ft.Colors.GREY_400,
+                        f"{session.matrix_type}矩阵 | {session.created_at.strftime('%Y-%m-%d %H:%M')}",
+                        size=10, color=ft.Colors.GREY_400,
                     ),
                 ],
                 spacing=5,
             ),
             padding=10,
             bgcolor=ft.Colors.GREY_100,
-            border_radius=5,
+            border_radius=8,
         )
 
-        # 解决方案卡片列表
-        solutions = []
-        for s in session.solutions:
-            is_ai_generated = getattr(s, "is_ai_generated", False)
-            confidence = getattr(s, "confidence", None)
-            conf_text = f"{int(confidence * 100)}%" if confidence else ""
+        # 解决方案卡片列表（按分类）
+        solution_cards: list[ft.Control] = []
 
-            card = ft.Card(
-                content=ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    ft.Container(
-                                        content=ft.Text(
-                                            f"#{s.principle_id}",
-                                            size=14,
-                                            weight=ft.FontWeight.BOLD,
-                                        ),
-                                        padding=5,
-                                        bgcolor=COLORS["primary"],
-                                        border_radius=3,
-                                    ),
-                                    ft.Text(
-                                        s.principle_name,
-                                        size=13,
-                                        weight=ft.FontWeight.BOLD,
-                                        expand=True,
-                                    ),
-                                    ft.Text(
-                                        "🤖 AI" if is_ai_generated else "📦 本地",
-                                        size=10,
-                                        color=(
-                                            ft.Colors.GREEN
-                                            if is_ai_generated
-                                            else ft.Colors.GREY
-                                        ),
-                                    ),
-                                ]
+        def _get_category_icon(cat: str) -> ft.IconData:
+            icons = {
+                "物理": ft.icons.Icons.SCIENCE,
+                "化学": ft.icons.Icons.SCIENCE,
+                "几何": ft.icons.Icons.STRAIGHTEN,
+                "时间": ft.icons.Icons.SCHEDULE,
+                "系统": ft.icons.Icons.SETTINGS_SYSTEM_DAYDREAM,
+                "其他": ft.icons.Icons.MORE_HORIZ,
+            }
+            return icons.get(cat, ft.icons.Icons.LIGHTBULB)
+
+        for category, solutions in categorized.items():
+            # 分类标题
+            solution_cards.append(
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(_get_category_icon(category), color=COLORS["primary"], size=16),
+                            ft.Text(f"{category}类原理", size=13, weight=ft.FontWeight.BOLD, color=COLORS["primary"]),
+                            ft.Text(f"({len(solutions)}个)", size=11, color=ft.Colors.GREY),
+                        ],
+                        spacing=5,
+                    ),
+                    padding=ft.padding.only(top=10, bottom=5),
+                )
+            )
+
+            for s in solutions:
+                confidence = s.confidence
+                if confidence >= 0.8:
+                    conf_color = COLORS.get("success", "#4CAF50")
+                elif confidence >= 0.6:
+                    conf_color = COLORS.get("warning", "#FF9800")
+                else:
+                    conf_color = COLORS.get("error", "#F44336")
+
+                conf_text = f"{confidence:.0%}"
+
+                # 技术方案（如果有）
+                tech_solution = getattr(s, "technical_solution", "")
+                innovation_point = getattr(s, "innovation_point", "")
+                examples = getattr(s, "examples", []) or []
+
+                # 构建卡片内容
+                card_content = [
+                    ft.Row(
+                        controls=[
+                            ft.Container(
+                                content=ft.Text(
+                                    f"#{s.principle_id}",
+                                    size=14,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=ft.Colors.WHITE,
+                                ),
+                                padding=6,
+                                border_radius=6,
+                                bgcolor=COLORS["primary"],
                             ),
                             ft.Text(
-                                s.description or "",
-                                size=11,
-                                max_lines=4,
-                                overflow=ft.TextOverflow.ELLIPSIS,
+                                s.principle_name,
+                                size=13,
+                                weight=ft.FontWeight.BOLD,
+                                expand=True,
                             ),
-                            ft.Divider(),
-                            ft.Row(
-                                [
-                                    ft.Text(
-                                        getattr(s, "category", "物理"),
-                                        size=10,
-                                        color=ft.Colors.GREY,
-                                    ),
-                                    ft.Container(expand=True),
-                                    (
-                                        ft.Text(
-                                            conf_text, size=10, color=COLORS["primary"]
-                                        )
-                                        if conf_text
-                                        else ft.Text("")
-                                    ),
-                                ]
+                            ft.Container(
+                                content=ft.Row(
+                                    controls=[
+                                        ft.Icon(ft.icons.Icons.VERIFIED, color=conf_color, size=14),
+                                        ft.Text(conf_text, size=11, color=conf_color),
+                                    ],
+                                    spacing=2,
+                                ),
+                                padding=4,
+                                border_radius=4,
                             ),
                         ],
-                        spacing=3,
+                        spacing=8,
                     ),
-                    padding=10,
-                ),
-                elevation=1,
-            )
-            solutions.append(card)
+                    ft.Divider(),
+                ]
+
+                # 描述或技术方案
+                if tech_solution:
+                    card_content.append(
+                        ft.Container(
+                            content=ft.Text(tech_solution, size=12, color=ft.Colors.GREY_800),
+                            padding=ft.padding.only(bottom=5),
+                        )
+                    )
+                elif s.description:
+                    card_content.append(
+                        ft.Container(
+                            content=ft.Text(s.description, size=12, color=ft.Colors.GREY_800),
+                            padding=ft.padding.only(bottom=5),
+                        )
+                    )
+
+                # 创新点（如果有）
+                if innovation_point:
+                    card_content.append(
+                        ft.Container(
+                            content=ft.Column(
+                                controls=[
+                                    ft.Text("创新点:", size=10, weight=ft.FontWeight.BOLD, color=COLORS["primary"]),
+                                    ft.Text(innovation_point, size=11, color=ft.Colors.GREY_700),
+                                ],
+                                spacing=2,
+                            ),
+                            padding=ft.padding.only(top=5, bottom=5),
+                        )
+                    )
+
+                # 标签行
+                card_content.append(
+                    ft.Row(
+                        controls=[
+                            ft.Container(
+                                content=ft.Text(
+                                    "🤖 AI" if getattr(s, "is_ai_generated", False) else "📦 本地",
+                                    size=9, color=ft.Colors.GREY,
+                                ),
+                                padding=2,
+                            ),
+                            ft.Container(
+                                content=ft.Text(s.category, size=9, color=COLORS["primary"]),
+                                padding=2,
+                            ),
+                            ft.Container(expand=True),
+                        ],
+                        spacing=3,
+                    )
+                )
+
+                # 应用示例（如果有）
+                if examples:
+                    examples_text = "\n".join(f"• {ex}" for ex in examples[:2])
+                    card_content.append(
+                        ft.Container(
+                            content=ft.Text(
+                                f"示例:\n{examples_text}",
+                                size=10,
+                                color=ft.Colors.GREY_600,
+                                italic=True,
+                            ),
+                            padding=ft.padding.only(top=5),
+                        )
+                    )
+
+                solution_cards.append(
+                    ft.Card(
+                        content=ft.Container(
+                            content=ft.Column(controls=card_content, spacing=3),
+                            padding=10,
+                        ),
+                        elevation=1,
+                    )
+                )
 
         solutions_view = ft.ListView(
             controls=(
-                solutions
-                if solutions
+                solution_cards
+                if solution_cards
                 else [ft.Text("无解决方案", size=12, color=ft.Colors.GREY)]
             ),
             expand=True,
-            spacing=8,
+            spacing=5,
             padding=5,
         )
 
@@ -877,17 +1010,19 @@ class SettingsTab(TabContent):
             title=ft.Text("会话详情", size=18, weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 content=ft.Column(
-                    [
-                        header,
-                        ft.Container(height=10),
+                    controls=[
+                        problem_card,
+                        ft.Container(height=5),
+                        stats_row,
+                        ft.Container(height=5),
                         ft.Text("解决方案", size=14, weight=ft.FontWeight.BOLD),
                         ft.Divider(),
                         solutions_view,
                     ],
-                    spacing=5,
+                    spacing=3,
                 ),
                 width=450,
-                height=500,
+                height=550,
                 padding=10,
             ),
             actions=[ft.TextButton("关闭", on_click=lambda _: self._close_dialog())],
@@ -895,6 +1030,20 @@ class SettingsTab(TabContent):
         )
 
         self._page.show_dialog(dialog)
+
+    def _create_detail_stat_item(self, label: str, value: str) -> ft.Container:
+        """创建详情统计项"""
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text(value, size=16, weight=ft.FontWeight.BOLD, color=COLORS["primary"]),
+                    ft.Text(label, size=9, color=ft.Colors.GREY),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=1,
+            ),
+            padding=3,
+        )
 
     def _close_dialog(self) -> None:
         """关闭弹窗"""

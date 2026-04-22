@@ -136,10 +136,14 @@ class MatrixTab(TabContent):
         # 使用实际连接状态，而非仅配置状态
         is_ai_connected = ai_manager.is_enabled() and ai_manager.is_connected()
 
-        if self.analyze_params_btn:
-            self.analyze_params_btn.disabled = not is_ai_connected
-        if self.brainstorm_btn:
-            self.brainstorm_btn.disabled = not is_ai_connected
+        # 安全访问属性，避免在UI构建前被调用时出错
+        analyze_btn = getattr(self, 'analyze_params_btn', None)
+        brainstorm_btn = getattr(self, 'brainstorm_btn', None)
+
+        if analyze_btn:
+            analyze_btn.disabled = not is_ai_connected
+        if brainstorm_btn:
+            brainstorm_btn.disabled = not is_ai_connected
 
     def _build_ui(self) -> None:
         """构建UI"""

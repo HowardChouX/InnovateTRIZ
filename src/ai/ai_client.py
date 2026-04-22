@@ -7,12 +7,20 @@ import logging
 from datetime import datetime
 from typing import Any, cast
 
-from openai import (  # type: ignore[import-not-found]
-    APIConnectionError,
-    APIError,
-    APITimeoutError,
-    AsyncOpenAI,
-)
+try:
+    from openai import (  # type: ignore[import-not-found]
+        APIConnectionError,
+        APIError,
+        APITimeoutError,
+        AsyncOpenAI,
+    )
+    _OPENAI_AVAILABLE = True
+except ImportError:
+    _OPENAI_AVAILABLE = False
+    APIConnectionError = None
+    APIError = None
+    APITimeoutError = None
+    AsyncOpenAI = None
 
 from ..config.constants import (
     DEEPSEEK_API_BASE,
@@ -25,92 +33,6 @@ from ..config.constants import (
 from ..data.models import AIAnalysisRequest, AIAnalysisResponse, Solution
 
 logger = logging.getLogger(__name__)
-
-
-def fuzzy_match_param(param: str, param_list: list[str]) -> str:
-    """将参数名模糊匹配到参数列表
-
-    Args:
-        param: 待匹配的参数名
-        param_list: 参数列表
-
-    Returns:
-        匹配到的参数名，如果无匹配则返回原参数
-    """
-    param_lower = param.lower().strip()
-
-    if not param_lower:
-        return param
-
-    # 精确匹配
-    for p in param_list:
-        if p.lower() == param_lower:
-            return p
-
-    # 包含匹配
-    for p in param_list:
-        if param_lower and (param_lower in p.lower() or p.lower() in param_lower):
-            return p
-
-    # 别名映射
-    aliases = {
-        "能量": "移动物体用的能源",
-        "能源": "移动物体用的能源",
-        "功率": "功率",
-        "速度": "速度",
-        "力": "力",
-        "重量": "移动物体的重量",
-        "体积": "移动物体的体积",
-        "长度": "移动物体的长度",
-        "面积": "移动物体的面积",
-        "形状": "形状",
-        "稳定性": "物体的稳定性",
-        "强度": "强度",
-        "温度": "温度",
-        "亮度": "亮度",
-        "可靠性": "可靠性",
-        "复杂性": "设备的复杂性",
-        "时间": "时间的浪费",
-        "浪费": "能源的浪费",
-    }
-    for alias, full_name in aliases.items():
-        if alias in param_lower and full_name in param_list:
-            return full_name
-
-    # 关键词匹配
-    keywords_map = {
-        "能量": ["能源", "能量消耗"],
-        "功率": ["功率"],
-        "速度": ["速度"],
-        "重量": ["重量"],
-        "体积": ["体积"],
-        "长度": ["长度"],
-        "面积": ["面积"],
-        "形状": ["形状"],
-        "稳定": ["稳定性"],
-        "强度": ["强度"],
-        "温度": ["温度"],
-        "亮度": ["亮度"],
-        "可靠": ["可靠性"],
-        "复杂": ["复杂性"],
-        "时间": ["时间"],
-        "浪费": ["浪费"],
-        "生产": ["产能"],
-        "自动": ["自动化"],
-        "控制": ["控制"],
-        "适应": ["适应性"],
-        "修复": ["修复性"],
-        "便利": ["便利性"],
-        "制造": ["制造性"],
-    }
-    for keyword, candidates in keywords_map.items():
-        if keyword in param_lower:
-            for _candidate in candidates:
-                for p in param_list:
-                    if keyword in p.lower():
-                        return p
-
-    return param
 
 
 class AIClient:
@@ -144,6 +66,12 @@ class AIClient:
 
     def _init_client(self) -> None:
         """初始化OpenAI客户端"""
+        if not _OPENAI_AVAILABLE:
+            logger.warning("openai 模块未安装，AI功能不可用")
+            self.enabled = False
+            self.client = None
+            return
+
         try:
             if self.base_url:
                 base_url = self.base_url
@@ -211,376 +139,126 @@ class AIClient:
             包含改善和恶化参数的字典
         """
         if not self.is_available():
-            logger.warning("AI不可用，无法检测参数")
-            return {"improving": "", "worsening": ""}
+            logger.warning("AI不可用，降级到本地引擎")
+            return self._local_detect_parameters(problem)
 
         # 使用constants中正确定义的39工程参数
         params_39 = ENGINEERING_PARAMETERS_39
         params_str = "\n".join([f"{i+1}. {p}" for i, p in enumerate(params_39)])
 
-        prompt = f"""你是一个TRIZ专家。从以下39个工程参数中选择多个改善参数和多个恶化参数。
+        system_prompt = f"""你是一个TRIZ专家。你的任务是从用户问题中识别出TRIZ改善参数和恶化参数。
 
-问题：{problem}
+【强制要求】
+1. improving和worsening数组中的每一个参数必须完全匹配下面的39个参数之一，不多不少
+2. 不要自己创造、缩写、修改任何参数名，只使用列表中存在的参数
+3. 如果不确定某个参数是否匹配，请从列表中选择最接近的一个
+4. 只输出JSON，不要输出任何其他文字
 
-39个工程参数：
+39个工程参数列表：
 {params_str}
 
-要求：
-1. 改善参数：你希望改善/提高/增加的目标（可能多个）
-2. 恶化参数：改善过程中可能带来的负面影响（可能多个）
-3. 尽量选择最相关的2-3个参数
+JSON格式（严格按照这个格式）：
+{{"improving": ["参数1", "参数2"], "worsening": ["参数1"], "explanation": "解释"}}"""
 
-直接用JSON返回，只返回这一个JSON对象：
-```json
-{{
-  "improving": ["参数1", "参数2"],
-  "worsening": ["参数1", "参数2"],
-  "explanation": "一句话解释矛盾"
-}}
-```"""
+        user_prompt = f"""问题：{problem}
 
-        system_prompt = """你是一个TRIZ专家。请严格按照JSON格式输出参数选择，不要包含任何其他文字。
+请分析这个TRIZ问题，找出：
+1. 改善参数：你希望改善、提高、增强的目标（选择1-2个）
+2. 恶化参数：改善过程中可能带来的负面影响（选择1-2个）
 
-JSON格式：
-{"improving": ["参数1", "参数2"], "worsening": ["参数1", "参数2"], "explanation": "解释"}
+注意：参数名必须从39个工程参数列表中精确选择，不要自己创造参数名！"""
 
-重要：
-- improving和worsening必须是数组格式
-- 只输出JSON，不要输出其他文字
-- 改善参数应该是"能量"、"功率"、"速度"、"强度"等正向参数
-- 恶化参数应该是"重量"、"体积"、"长度"、"损失"等负向参数"""
-
-        try:
-            start_time = datetime.now()
-
-            client = cast(AsyncOpenAI, self.client)
-            response = await client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0,
-                max_tokens=300,
-            )
-
-            processing_time = (datetime.now() - start_time).total_seconds()
-
-            content = response.choices[0].message.content or ""
-            logger.info(f"AI原始响应: {content}")
-
-            # 尝试解析JSON
-            import json
-
+        max_retries = 2
+        for attempt in range(max_retries):
             try:
+                start_time = datetime.now()
+
+                client = cast(AsyncOpenAI, self.client)
+                response = await client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0,
+                    max_tokens=300,
+                )
+
+                processing_time = (datetime.now() - start_time).total_seconds()
+
+                content = response.choices[0].message.content or ""
+                logger.info(f"AI原始响应(尝试{attempt + 1}): {content}")
+
+                # 解析JSON
+                import json
+
                 json_start = content.find("{")
                 json_end = content.rfind("}") + 1
-                if json_start >= 0 and json_end > json_start:
-                    json_str = content[json_start:json_end]
-                    result = json.loads(json_str)
-                    logger.info(f"参数检测成功: {result}, 耗时: {processing_time:.2f}s")
+                if json_start < 0 or json_end <= json_start:
+                    logger.warning(f"未找到JSON，尝试{attempt + 1}/{max_retries}")
+                    continue
 
-                    # 验证并标准化返回格式
-                    improving = result.get("improving", [])
-                    worsening = result.get("worsening", [])
+                json_str = content[json_start:json_end]
+                result = json.loads(json_str)
+                logger.info(f"参数检测成功: {result}, 耗时: {processing_time:.2f}s")
 
-                    # 确保是列表格式
-                    if isinstance(improving, str):
-                        improving = [improving] if improving else []
-                    if isinstance(worsening, str):
-                        worsening = [worsening] if worsening else []
+                # 验证并标准化返回格式
+                improving = result.get("improving", [])
+                worsening = result.get("worsening", [])
 
-                    # 过滤掉不在39参数列表中的值
-                    improving = [p for p in improving if p in params_39]
-                    worsening = [p for p in worsening if p in params_39]
+                # 确保是列表格式
+                if isinstance(improving, str):
+                    improving = [improving] if improving else []
+                if isinstance(worsening, str):
+                    worsening = [worsening] if worsening else []
 
-                    return {
-                        "improving": improving,
-                        "worsening": worsening,
-                        "explanation": result.get("explanation", ""),
-                    }
-                else:
-                    logger.warning(f"未找到JSON: {content}")
+                # 严格验证：只保留在39参数列表中的参数
+                improving = [p for p in improving if p in params_39]
+                worsening = [p for p in worsening if p in params_39]
 
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON解析失败: {e}, 原始响应: {content}")
+                # 如果参数为空，让AI重新思考
+                if not improving and not worsening:
+                    logger.warning(f"AI返回参数为空，尝试{attempt + 1}/{max_retries}")
+                    continue
 
-            # 如果JSON解析失败，使用备用提取
-            improving = self._extract_multiple_from_response(
-                content, "improving", params_39
-            )
-            worsening = self._extract_multiple_from_response(
-                content, "worsening", params_39
-            )
-
-            if improving or worsening:
-                logger.info(
-                    f"备用提取成功: improving={improving}, worsening={worsening}"
-                )
                 return {
                     "improving": improving,
                     "worsening": worsening,
-                    "explanation": "从AI响应中提取",
+                    "explanation": result.get("explanation", ""),
                 }
 
-            return {"improving": "", "worsening": "", "explanation": "AI未返回有效参数"}
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON解析失败: {e}, 尝试{attempt + 1}/{max_retries}")
+                if attempt == max_retries - 1:
+                    return self._local_detect_parameters(problem)
+            except APITimeoutError:
+                logger.error("AI请求超时")
+                return self._local_detect_parameters(problem)
+            except APIConnectionError:
+                logger.error("AI连接错误")
+                return self._local_detect_parameters(problem)
+            except APIError as e:
+                logger.error(f"API错误: {e}")
+                return self._local_detect_parameters(problem)
+            except Exception as e:
+                logger.error(f"未知错误: {e}")
+                return self._local_detect_parameters(problem)
 
-        except APITimeoutError:
-            logger.error("AI请求超时")
-            return {"improving": "", "worsening": "", "error": "请求超时"}
-        except APIConnectionError:
-            logger.error("AI连接错误")
-            return {"improving": "", "worsening": "", "error": "连接错误"}
-        except APIError as e:
-            logger.error(f"API错误: {e}")
-            return {"improving": "", "worsening": "", "error": str(e)}
+        # 所有重试都失败，降级到本地引擎
+        logger.warning("AI参数检测失败，降级到本地引擎")
+        return self._local_detect_parameters(problem)
+
+    def _local_detect_parameters(self, problem: str) -> dict[str, Any]:
+        """本地引擎参数检测（降级方案）"""
+        try:
+            from ..core.triz_engine import get_triz_engine
+            engine = get_triz_engine()
+            result = engine.local_engine.detect_parameters(problem)
+            logger.info(f"本地引擎参数检测结果: {result}")
+            return result
         except Exception as e:
-            logger.error(f"未知错误: {e}")
-            return {"improving": "", "worsening": "", "error": str(e)}
-
-    def _extract_from_response(
-        self, content: str, param_type: str, param_list: list[str]
-    ) -> str:
-        """从AI响应中提取参数"""
-        content_lower = content.lower()
-
-        # 找所有在内容中的参数（精确匹配）
-        found_params = []
-        for param in param_list:
-            if param.lower() in content_lower:
-                found_params.append(param)
-
-        # 模糊匹配：AI可能返回近似参数名
-        # 例如："能量消耗" -> "能量"，"运动物体用" -> "运动物体"
-        if not found_params:
-            # 从content中提取可能匹配的片段（取150字符窗口）
-            for param in param_list:
-                param_lower = param.lower()
-                idx = content_lower.find(param_lower)
-                if idx != -1:
-                    found_params.append(param)
-                    continue
-
-                # 尝试去后缀匹配
-                suffixes = ["消耗", "用", "问题", "率", "性"]
-                for suffix in suffixes:
-                    if param_lower.endswith(suffix):
-                        base = param_lower[: -len(suffix)]
-                        if base in content_lower:
-                            found_params.append(param)
-                            logger.info(f"模糊匹配: '{param}' (base: '{base}')")
-                            break
-
-        logger.info(f"找到的参数: {found_params}")
-
-        if not found_params:
-            return ""
-
-        unique_params = list(dict.fromkeys(found_params))  # 去重保持顺序
-
-        # 如果只有一个参数，根据参数类型推断另一个
-        if len(unique_params) == 1:
-            single = unique_params[0]
-            if "能量消耗" in single or "能量" in single:
-                if param_type == "improving":
-                    return single
-                else:
-                    for p in ["重量", "体积", "长度"]:
-                        for param in param_list:
-                            if p in param:
-                                return param
-            elif "重量" in single or "体积" in single:
-                if param_type == "worsening":
-                    return single
-                else:
-                    for p in ["能量消耗"]:
-                        for param in param_list:
-                            if p in param:
-                                return param
-            return single
-
-        # 多个参数时，根据上下文匹配
-        # 优先参数类型映射
-        if param_type == "improving":
-            # 改善参数优先选择：能量、功率、速度等正向参数
-            priority_keywords = [
-                "能量",
-                "功率",
-                "速度",
-                "强度",
-                "可靠性",
-                "精度",
-                "效率",
-            ]
-            for keyword in priority_keywords:
-                for param in unique_params:
-                    if keyword in param:
-                        return param
-            return unique_params[0]
-        else:
-            # 恶化参数优先选择：重量、体积、复杂性等负向参数
-            priority_keywords = [
-                "重量",
-                "体积",
-                "长度",
-                "面积",
-                "复杂性",
-                "损失",
-                "时间",
-            ]
-            for keyword in priority_keywords:
-                for param in unique_params:
-                    if keyword in param:
-                        return param
-            return unique_params[-1]
-
-    def _extract_multiple_from_response(
-        self, content: str, param_type: str, param_list: list[str]
-    ) -> list[str]:
-        """从AI响应中提取多个参数"""
-        content_lower = content.lower()
-
-        # 定义参数类型映射
-        improving_keywords = [
-            "能量",
-            "功率",
-            "速度",
-            "强度",
-            "可靠性",
-            "精度",
-            "效率",
-            "生产率",
-            "面积",
-            "稳定性",
-        ]
-        worsening_keywords = [
-            "重量",
-            "长度",
-            "复杂性",
-            "损失",
-            "时间",
-            "应力",
-            "压力",
-            "有害因素",
-            "体积",
-        ]
-
-        # 找所有在内容中的参数
-        param_positions = []  # (param, position, context)
-        for param in param_list:
-            param_lower = param.lower()
-            start = 0
-            while True:
-                idx = content_lower.find(param_lower, start)
-                if idx == -1:
-                    break
-                # 获取上下文（前后100字符）
-                context_start = max(0, idx - 100)
-                context_end = min(len(content), idx + 100)
-                context = content_lower[context_start:context_end]
-                param_positions.append((param, idx, context))
-                start = idx + 1
-
-        if not param_positions:
-            return []
-
-        # 分析上下文，判断参数属于改善还是恶化
-        improving_candidates = []
-        worsening_candidates = []
-
-        for param, _pos, _context in param_positions:
-            # 检查上下文中是否有改善/恶化的标记
-            improving_markers = [
-                "improve",
-                "increase",
-                "increase",
-                "提高",
-                "增加",
-                "改善",
-                "更多",
-                "larger",
-                "bigger",
-                "more",
-            ]
-            worsening_markers = [
-                "decrease",
-                "reduce",
-                "reduce",
-                "降低",
-                "减少",
-                "恶化",
-                "less",
-                "smaller",
-                "low",
-                "keep",
-                "avoid",
-                "重量",
-                "体积",
-                "长度",
-            ]
-
-            is_improving = False
-            is_worsening = False
-
-            for marker in improving_markers:
-                if marker in _context:
-                    is_improving = True
-                    break
-
-            for marker in worsening_markers:
-                if marker in _context:
-                    is_worsening = True
-                    break
-
-            # 根据关键词本身判断
-            for kw in improving_keywords:
-                if kw in param and "损失" not in param:
-                    is_improving = True
-                    break
-
-            for kw in worsening_keywords:
-                if kw in param:
-                    is_worsening = True
-                    break
-
-            if is_improving and param not in improving_candidates:
-                improving_candidates.append(param)
-            if is_worsening and param not in worsening_candidates:
-                worsening_candidates.append(param)
-
-        # 根据请求类型返回对应的参数
-        if param_type == "improving":
-            # 优先返回能量相关的正向参数
-            result = []
-            for kw in ["能量", "功率", "速度", "强度"]:
-                for p in improving_candidates:
-                    if kw in p and p not in result:
-                        result.append(p)
-            # 添加其他改善参数
-            for p in improving_candidates:
-                if p not in result:
-                    result.append(p)
-            return result[:3] if result else []
-        else:
-            # 恶化参数：选择负向参数，排除能量类
-            result = []
-            for kw in [
-                "重量",
-                "体积",
-                "长度",
-                "复杂性",
-                "损失",
-                "时间",
-                "应力",
-                "压力",
-                "有害因素",
-            ]:
-                for p in worsening_candidates:
-                    if kw in p and p not in result:
-                        # 排除能量类参数，它们应该是改善参数
-                        if "能量" not in p and "功率" not in p and "速度" not in p:
-                            result.append(p)
-            return result[:3] if result else []
+            logger.error(f"本地引擎参数检测失败: {e}")
+            return {"improving": "", "worsening": "", "explanation": "参数检测失败"}
 
     async def generate_solutions(
         self, request: AIAnalysisRequest
