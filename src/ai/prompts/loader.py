@@ -3,7 +3,7 @@ TRIZ提示词加载器
 从Python代码加载提示词模板
 """
 
-from ...config.constants import INVENTIVE_PRINCIPLES as CN_INVENTIVE_PRINCIPLES
+from config.constants import INVENTIVE_PRINCIPLES as CN_INVENTIVE_PRINCIPLES
 from .templates import (
     ALTSHULLER_SOLVING_STEPS,
     CONTRADICTION_SOLVER_TEMPLATE,

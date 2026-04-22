@@ -8,8 +8,8 @@ from collections.abc import Callable, Sequence
 
 import flet as ft
 
-from ..config.constants import COLORS, PRINCIPLE_CATEGORIES
-from ..data.models import Solution
+from config.constants import COLORS, PRINCIPLE_CATEGORIES
+from data.models import Solution
 
 logger = logging.getLogger(__name__)
 

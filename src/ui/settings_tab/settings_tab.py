@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, Any
 
 import flet as ft
 
-from ...config.constants import COLORS
-from ...data.local_storage import LocalStorage
-from ...data.models import AnalysisSession
-from ..app_shell import TabContent
+from config.constants import COLORS
+from data.local_storage import LocalStorage
+from data.models import AnalysisSession
+from ui.app_shell import TabContent
 
 if TYPE_CHECKING:
-    from ..ai_settings_dialog import AISettingsDialog
+    from ui.ai_settings_dialog import AISettingsDialog
 
 logger = logging.getLogger(__name__)
 
@@ -303,7 +303,7 @@ class SettingsTab(TabContent):
         """显示AI设置对话框"""
         logger.info("_show_ai_settings 被调用")
         if self._ai_settings_dialog is None:
-            from ..ai_settings_dialog import AISettingsDialog
+            from ui.ai_settings_dialog import AISettingsDialog
 
             self._ai_settings_dialog = AISettingsDialog(self._page)
         self._ai_settings_dialog.show()
@@ -687,7 +687,7 @@ class SettingsTab(TabContent):
 
     def _show_session_detail(self, session: AnalysisSession) -> None:
         """显示会话详情（增强版，类似头脑风暴展示）"""
-        from ...config.constants import PRINCIPLE_CATEGORIES
+        from config.constants import PRINCIPLE_CATEGORIES
 
         # 计算统计信息
         total = len(session.solutions)

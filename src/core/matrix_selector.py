@@ -6,12 +6,12 @@
 import logging
 from typing import TYPE_CHECKING
 
-from ..config.constants import INVENTIVE_PRINCIPLES
-from ..data.models import MatrixQueryResult, PrincipleQueryResult
-from ..data.triz_constants import get_triz_data_loader
+from config.constants import INVENTIVE_PRINCIPLES
+from data.models import MatrixQueryResult, PrincipleQueryResult
+from data.triz_constants import get_triz_data_loader
 
 if TYPE_CHECKING:
-    from ..data.triz_constants import TRIZDataLoader
+    from data.triz_constants import TRIZDataLoader
 
 logger = logging.getLogger(__name__)
 

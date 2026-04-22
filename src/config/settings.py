@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ..data.models import AppConfig, ProviderConfig
+from data.models import AppConfig, ProviderConfig
 
 logger = logging.getLogger(__name__)
 

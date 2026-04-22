@@ -9,13 +9,13 @@ from typing import Any
 
 import flet as ft
 
-from ...config.constants import COLORS
-from ...core.matrix_selector import get_matrix_manager
-from ...core.principle_service import get_principle_service
-from ...data.local_storage import LocalStorage
-from ...data.models import AnalysisSession, Solution
-from ..app_shell import TabContent
-from ..parameter_ui import ParameterPicker
+from config.constants import COLORS
+from core.matrix_selector import get_matrix_manager
+from core.principle_service import get_principle_service
+from data.local_storage import LocalStorage
+from data.models import AnalysisSession, Solution
+from ui.app_shell import TabContent
+from ui.parameter_ui import ParameterPicker
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class MatrixTab(TabContent):
         self._matrix_manager = get_matrix_manager()
 
         # 订阅AI状态变化
-        from ..state import get_ai_state_manager
+        from ui.state import get_ai_state_manager
 
         ai_state = get_ai_state_manager()
         ai_state.subscribe(self._on_ai_state_changed)
@@ -107,9 +107,9 @@ class MatrixTab(TabContent):
 
     def _mark_ai_disconnected(self) -> None:
         """标记AI为未连接状态，并通知AI状态变化"""
-        from src.ai.ai_client import get_ai_manager
+        from ai.ai_client import get_ai_manager
 
-        from ..state import get_ai_state_manager
+        from ui.state import get_ai_state_manager
 
         ai_manager = get_ai_manager()
         ai_manager.set_connected(False)
@@ -130,7 +130,7 @@ class MatrixTab(TabContent):
 
     def _update_ai_buttons(self) -> None:
         """根据AI连接状态启用/禁用AI相关按钮"""
-        from src.ai.ai_client import get_ai_manager
+        from ai.ai_client import get_ai_manager
 
         ai_manager = get_ai_manager()
         # 使用实际连接状态，而非仅配置状态
@@ -402,7 +402,7 @@ class MatrixTab(TabContent):
             return
 
         # 检查AI是否可用
-        from src.ai.ai_client import get_ai_manager
+        from ai.ai_client import get_ai_manager
 
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
@@ -672,7 +672,7 @@ class MatrixTab(TabContent):
         assert self.loading_indicator is not None
         assert self.brainstorm_btn is not None
         # 检查AI是否可用
-        from src.ai.ai_client import get_ai_manager
+        from ai.ai_client import get_ai_manager
 
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
@@ -694,7 +694,7 @@ class MatrixTab(TabContent):
         self._page.update()
 
         try:
-            from src.core.triz_engine import get_triz_engine
+            from core.triz_engine import get_triz_engine
 
             engine = get_triz_engine()
 
@@ -736,7 +736,7 @@ class MatrixTab(TabContent):
             )
 
             # 创建会话
-            from src.data.models import AnalysisSession
+            from data.models import AnalysisSession
 
             session = AnalysisSession(
                 problem=problem,
@@ -894,7 +894,7 @@ class MatrixTab(TabContent):
                     else:
                         self._show_snack_bar("追加失败，请查看日志")
                 else:
-                    from src.data.models import AnalysisSession as NewSession
+                    from data.models import AnalysisSession as NewSession
 
                     new_session = NewSession(
                         problem=session.problem,
@@ -929,7 +929,7 @@ class MatrixTab(TabContent):
 
     def _create_principle_card(self, principle: Any) -> ft.Container:
         """创建原理卡片（与原理库样式一致）"""
-        from ...data.models import InventivePrinciple
+        from data.models import InventivePrinciple
 
         # 支持 Solution 和 InventivePrinciple 两种对象
         principle_id = getattr(principle, "principle_id", None) or getattr(
@@ -1337,7 +1337,7 @@ class MatrixTab(TabContent):
 
     def _show_principle_detail_dialog(self, principle: Any) -> None:
         """显示原理详情弹窗"""
-        from ...data.models import InventivePrinciple
+        from data.models import InventivePrinciple
 
         if not isinstance(principle, InventivePrinciple):
             # 如果不是 InventivePrinciple 类型，调用简化版
@@ -1766,6 +1766,6 @@ class MatrixTab(TabContent):
 
     def _get_category_color(self, category: str) -> str:
         """获取分类颜色"""
-        from ...config.constants import CATEGORY_COLORS
+        from config.constants import CATEGORY_COLORS
 
         return CATEGORY_COLORS.get(category, "#2196F3")

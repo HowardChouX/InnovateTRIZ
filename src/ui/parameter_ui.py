@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 import flet as ft
 
-from ..config.constants import COLORS
+from config.constants import COLORS
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@
 
 import flet as ft
 
-from ...config.constants import CATEGORY_COLORS
+from config.constants import CATEGORY_COLORS
 
 
 class CategoryBadge(ft.Container):

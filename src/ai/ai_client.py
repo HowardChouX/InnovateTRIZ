@@ -26,7 +26,7 @@ except ImportError:
     APITimeoutError = Exception
     AsyncOpenAI = None
 
-from ..config.constants import (
+from config.constants import (
     DEEPSEEK_API_BASE,
     DEFAULT_AI_MODEL,
     ENGINEERING_PARAMETERS_39,
@@ -34,7 +34,7 @@ from ..config.constants import (
     OPENROUTER_API_BASE,
     PRINCIPLE_CATEGORIES,
 )
-from ..data.models import AIAnalysisRequest, AIAnalysisResponse, Solution
+from data.models import AIAnalysisRequest, AIAnalysisResponse, Solution
 
 logger = logging.getLogger(__name__)
 

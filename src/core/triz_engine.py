@@ -10,12 +10,12 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
-from ..config.constants import (
+from config.constants import (
     ENGINEERING_PARAMETERS_39,
     INVENTIVE_PRINCIPLES,
     PRINCIPLE_CATEGORIES,
 )
-from ..data.models import (
+from data.models import (
     AIAnalysisRequest,
     AIAnalysisResponse,
     AnalysisSession,
@@ -399,7 +399,7 @@ class TRIZEngine:
         # 生成解决方案
         if use_ai:
             # 从 ai_manager 获取 AI 客户端
-            from ..ai.ai_client import get_ai_manager
+            from ai.ai_client import get_ai_manager
 
             ai_manager = get_ai_manager()
             ai_client = ai_manager.get_client()
@@ -444,7 +444,7 @@ class TRIZEngine:
         Returns:
             解决方案列表
         """
-        from ..ai.ai_client import get_ai_manager
+        from ai.ai_client import get_ai_manager
 
         solutions: list[Solution] = []
         total = len(principle_ids)

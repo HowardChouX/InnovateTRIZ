@@ -8,7 +8,7 @@ from typing import Any
 
 import flet as ft
 
-from ..config.constants import COLORS
+from config.constants import COLORS
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class AISettingsDialog:
 
     def _load_current_settings(self) -> None:
         """加载当前设置（在打开对话框时调用，解密所有供应商密钥到内存字典）"""
-        from src.config.settings import _simple_decrypt, get_app_settings
+        from config.settings import _simple_decrypt, get_app_settings
 
         # AppSettings 是单例
         settings = get_app_settings()
@@ -272,9 +272,9 @@ class AISettingsDialog:
         self, api_key: str, provider: str, base_url: str, model: str
     ) -> None:
         """异步保存设置"""
-        from src.ai.ai_client import get_ai_manager
-        from src.config.settings import get_app_settings
-        from src.data.models import ProviderConfig
+        from ai.ai_client import get_ai_manager
+        from config.settings import get_app_settings
+        from data.models import ProviderConfig
 
         try:
             settings = get_app_settings()
@@ -346,7 +346,7 @@ class AISettingsDialog:
         """异步测试AI连接"""
         import time
 
-        from src.ai.ai_client import get_ai_manager
+        from ai.ai_client import get_ai_manager
 
         assert (
             self.connectionStatusText is not None and self.testConnectionBtn is not None

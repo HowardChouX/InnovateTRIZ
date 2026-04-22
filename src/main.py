@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 TRIZ Android应用主入口
-（与根目录 main.py 功能相同，作为 flet build 的入口点）
 """
 
 import flet as ft
@@ -12,19 +11,19 @@ import os
 from pathlib import Path
 from typing import Optional
 
-# 添加项目根目录到路径（让 from src.xxx 能够正常工作）
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 添加项目根目录到路径（APK 中 __file__ 指向 app 目录，src/ 是其子目录）
+project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.config.constants import APP_NAME, APP_VERSION, COLORS
-from src.data.local_storage import LocalStorage
-from src.ai.ai_client import get_ai_manager
-from src.config.settings import AppSettings, get_app_settings
-from src.ui.app_shell import TRIZAppShell
-from src.ui.matrix_tab import MatrixTab
-from src.ui.principles_tab import PrinciplesTab
-from src.ui.settings_tab import SettingsTab
+from config.constants import APP_NAME, APP_VERSION, COLORS
+from data.local_storage import LocalStorage
+from ai.ai_client import get_ai_manager
+from config.settings import AppSettings, get_app_settings
+from ui.app_shell import TRIZAppShell
+from ui.matrix_tab import MatrixTab
+from ui.principles_tab import PrinciplesTab
+from ui.settings_tab import SettingsTab
 
 # 配置日志（仅控制台，避免Android文件权限问题）
 logging.basicConfig(
@@ -36,9 +35,8 @@ logging.basicConfig(
 
 def _is_android_env() -> bool:
     """检测Android环境（Flet官方推荐方式）"""
-    if os.getenv("FLET_PLATFORM") == "android":
-        return True
-    if sys.platform == "android":
+    platform = os.getenv("FLET_PLATFORM") or sys.platform
+    if platform == "android":
         return True
     if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
         return True
@@ -131,7 +129,7 @@ class TRIZApp:
             )
             if provider_config and provider_config.api_key:
                 # 解密密钥
-                from src.config.settings import _simple_decrypt
+                from config.settings import _simple_decrypt
 
                 api_key = (
                     _simple_decrypt(provider_config.api_key) or provider_config.api_key
@@ -172,8 +170,8 @@ class TRIZApp:
     async def _silent_test_ai_connection(self):
         """静默测试AI连接"""
         import time
-        from src.ai.ai_client import get_ai_manager
-        from src.ui.state import get_ai_state_manager
+        from ai.ai_client import get_ai_manager
+        from ui.state import get_ai_state_manager
 
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
@@ -233,7 +231,7 @@ class TRIZApp:
                 ft.Button(
                     "重试",
                     icon=ft.icons.Icons.REFRESH,
-                    on_click=lambda e: self._restart_app(),
+                    on_click=lambda _: self._restart_app(),
                 ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -271,7 +269,7 @@ def main():
     parser.add_argument(
         "--mode",
         choices=["web", "desktop", "apk"],
-        default="desktop",
+        default="apk",
         help="运行模式: web(浏览器), desktop(桌面窗口), apk(移动应用)",
     )
     parser.add_argument("--port", type=int, default=8550, help="Web模式端口")
@@ -282,8 +280,8 @@ def main():
         print("错误: 需要Python 3.10或更高版本")
         sys.exit(1)
 
-    print(f"🚀 启动 {APP_NAME} v{APP_VERSION}")
-    print(f"📱 运行模式: {args.mode.upper()}")
+    print(f" 启动 {APP_NAME} v{APP_VERSION}")
+    print(f" 运行模式: {args.mode.upper()}")
     print("=" * 50)
 
     # 运行Flet应用
@@ -301,9 +299,9 @@ def main():
             ft.run(TRIZApp().main, assets_dir="src/assets")
 
     except KeyboardInterrupt:
-        print("\n👋 应用已退出")
+        print(" 应用已退出")
     except Exception as e:
-        print(f"❌ 应用启动失败: {e}")
+        print(f" 应用启动失败: {e}")
         logger.error(f"应用启动失败: {e}", exc_info=True)
         sys.exit(1)
 

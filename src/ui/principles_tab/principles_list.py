@@ -8,10 +8,10 @@ from collections.abc import Callable
 
 import flet as ft
 
-from ...config.constants import CATEGORY_COLORS, COLORS, PRINCIPLE_CATEGORIES
-from ...core.principle_service import get_principle_service
-from ...data.models import InventivePrinciple
-from ..app_shell import TabContent
+from config.constants import CATEGORY_COLORS, COLORS, PRINCIPLE_CATEGORIES
+from core.principle_service import get_principle_service
+from data.models import InventivePrinciple
+from ui.app_shell import TabContent
 
 logger = logging.getLogger(__name__)
 
