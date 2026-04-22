@@ -22,7 +22,7 @@ dev = [
 [tool.flet]
 desktop_flavor = "light"    # Change to "full" to use flet-audio and flet-video
 org = "com.triztool"
-product = "triz"
+product = "Triz"
 company = "triztool"
 copyright = "Copyright (C) 2023-2026 by Flet"
 
