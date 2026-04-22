@@ -200,12 +200,43 @@ class ParameterPicker:
                 self.filtered_params[category] = filtered
 
     def _update_param_list(self) -> None:
-        """更新参数列表"""
+        """更新参数列表（已选参数排前）"""
         assert self.content_column is not None
         self.content_column.controls.clear()
 
+        # 如果有已选参数，先显示"已选参数"区域
+        if self.current_values:
+            selected_header = ft.Container(
+                content=ft.Text(
+                    "已选参数",
+                    size=13,
+                    weight=ft.FontWeight.BOLD,
+                    color=COLORS["primary"],
+                ),
+                padding=ft.Padding.only(top=12, bottom=6),
+            )
+            self.content_column.controls.append(selected_header)
+
+            for param in self.current_values:
+                btn = self._create_param_button(param, True)
+                self.content_column.controls.append(btn)
+                self.content_column.controls.append(ft.Container(height=4))
+
+            # 添加分隔线
+            self.content_column.controls.append(
+                ft.Divider(height=1, color=ft.Colors.GREY_300)
+            )
+
+        # 再显示分类参数（已选的排在前面）
         for category, params in self.filtered_params.items():
             if not params:
+                continue
+
+            # 分离已选和未选参数
+            selected_in_cat = [p for p in params if p in self.current_values]
+            unselected_in_cat = [p for p in params if p not in self.current_values]
+
+            if not selected_in_cat and not unselected_in_cat:
                 continue
 
             # 分类标题
@@ -220,12 +251,16 @@ class ParameterPicker:
             )
             self.content_column.controls.append(category_header)
 
-            # 参数按钮
-            for param in params:
-                is_selected = param in self.current_values
-                btn = self._create_param_button(param, is_selected)
+            # 已选参数（排在前面）
+            for param in selected_in_cat:
+                btn = self._create_param_button(param, True)
                 self.content_column.controls.append(btn)
-                # 参数按钮之间添加间距
+                self.content_column.controls.append(ft.Container(height=4))
+
+            # 未选参数
+            for param in unselected_in_cat:
+                btn = self._create_param_button(param, False)
+                self.content_column.controls.append(btn)
                 self.content_column.controls.append(ft.Container(height=4))
 
     def _create_param_button(self, param: str, is_selected: bool) -> ft.Container:
