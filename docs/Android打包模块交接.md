@@ -92,7 +92,7 @@ android {
         minSdk 21
         targetSdk 34
         versionCode 1
-        versionName "1.0.0"
+        versionName "0.2.0"
 
         // 支持多CPU架构
         ndk {
@@ -286,7 +286,7 @@ flet build apk --output ./dist/
 flet build apk \
   --package-name com.innovatetriz.assistant \
   --build-number 1 \
-  --build-name 1.0.0
+  --build-name 0.2.0
 ```
 
 ### 发布版APK（签名）

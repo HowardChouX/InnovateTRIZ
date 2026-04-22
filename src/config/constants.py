@@ -3,9 +3,9 @@ TRIZ应用常量定义
 """
 
 # 应用信息
-APP_NAME = "TRIZ创新助手"
-APP_VERSION = "1.0.0"
-APP_AUTHOR = "InnovateTRIZ Team"
+APP_NAME = "TRIZ-AI"
+APP_VERSION = "0.2.0"
+APP_AUTHOR = "TRIZ"
 
 # 矩阵类型
 MATRIX_39 = "39"

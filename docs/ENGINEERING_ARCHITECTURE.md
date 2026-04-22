@@ -538,7 +538,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 34
         versionCode 1
-        versionName "1.0.0"
+        versionName "0.2.0"
     }
     
     buildTypes {
@@ -633,5 +633,5 @@ class ErrorHandler:
 ---
 
 **工程负责人**: Claude Code  
-**最后更新**: 2025年4月  
-**版本**: 1.0.0
+**最后更新**: 2026年4月  
+**版本**: 0.2.0
