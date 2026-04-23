@@ -16,6 +16,10 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# 初始化统一日志系统（必须在其他模块之前）
+from utils.logger import get_triz_logger, LOG_FILE
+_triz_logger = get_triz_logger()
+
 from config.constants import APP_NAME, APP_VERSION, COLORS
 from data.local_storage import LocalStorage
 from ai.ai_client import get_ai_manager
@@ -24,48 +28,6 @@ from ui.app_shell import TRIZAppShell
 from ui.matrix_tab import MatrixTab
 from ui.principles_tab import PrinciplesTab
 from ui.settings_tab import SettingsTab
-
-# 配置日志（仅控制台，避免Android文件权限问题）
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # 仅控制台
-)
-
-
-def _is_android_env() -> bool:
-    """检测Android环境（Flet官方推荐方式）"""
-    platform = os.getenv("FLET_PLATFORM") or sys.platform
-    if platform == "android":
-        return True
-    if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
-        return True
-    if "ANDROID_DATA" in os.environ:
-        return True
-    return False
-
-
-try:
-    app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
-    if app_data_path:
-        log_dir = Path(app_data_path) / "logs"
-    elif _is_android_env():
-        # Android 环境回退到当前目录
-        log_dir = Path(".") / ".triz_logs"
-    else:
-        # 桌面环境
-        config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(
-            Path.home(), ".config"
-        )
-        log_dir = Path(config_home) / "triz-assistant" / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    file_handler = logging.FileHandler(log_dir / "triz_app.log", encoding="utf-8")
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
-    logging.getLogger().addHandler(file_handler)
-except Exception:
-    pass  # Android上文件日志可能失败，使用控制台日志即可
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +114,10 @@ class TRIZApp:
             # 初始化AppShell
             self.app_shell = TRIZAppShell(self.page)
 
-            # 添加三个Tab
-            self.matrix_tab = MatrixTab(self.page, self.storage)
+            # 添加三个Tab（先创建AppShell，再创建各Tab并传入app_shell引用）
             principles_tab = PrinciplesTab(self.page)
             settings_tab = SettingsTab(self.page, self.storage)
+            self.matrix_tab = MatrixTab(self.page, self.storage, app_shell=self.app_shell)
 
             self.app_shell.add_tab("matrix", self.matrix_tab)
             self.app_shell.add_tab("principles", principles_tab)
@@ -307,4 +269,10 @@ def main():
 
 
 if __name__ == "__main__":
+    import os
+
+    # 抑制uvicorn的访问日志（WebSocket连接DEBUG信息）
+    os.environ["UVICORN_ACCESS_LOG"] = "0"
+    os.environ["UVICORN_LOG_LEVEL"] = "error"
+
     main()

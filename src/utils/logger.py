@@ -116,53 +116,68 @@ class TRIZLogger:
         except Exception as e:
             print(f"警告: 无法创建日志目录 {LOG_DIR}: {e}")
 
-        # 创建根日志器
-        root_logger = logging.getLogger("TRIZ")
+        # 配置根日志器（使所有logger都使用统一日志系统）
+        root_logger = logging.getLogger()
         root_logger.setLevel(logging.DEBUG)
 
-        # 清除现有处理器
-        root_logger.handlers.clear()
+        # 抑制第三方库的DEBUG日志（uvicorn/flet_web/WebSocket等）
+        for noisy_logger_name in [
+            "uvicorn", "uvicorn.error", "uvicorn.access",
+            "flet_web", "flet_desktop", "flet_controls", "flet_transport",
+        ]:
+            noisy_logger = logging.getLogger(noisy_logger_name)
+            noisy_logger.setLevel(logging.WARNING)
+            noisy_logger.handlers.clear()
+            noisy_logger.propagate = False
+
+        # 只添加不存在的处理器，避免重复或清除其他库设置的处理器
+        existing_handler_types = {type(h) for h in root_logger.handlers}
 
         # 控制台处理器
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
+        if not any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in root_logger.handlers):
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setLevel(logging.INFO)
+            console_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
+            root_logger.addHandler(console_handler)
 
         # 文件处理器（带轮转）
-        try:
-            file_handler = RotatingFileHandler(
-                LOG_FILE,
-                encoding="utf-8",
-                mode="a",
-                maxBytes=MAX_LOG_SIZE,
-                backupCount=BACKUP_COUNT,
-            )
-            file_handler.setLevel(logging.DEBUG)
-            file_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
-            root_logger.addHandler(file_handler)
-        except Exception as e:
-            print(f"警告: 无法创建文件日志处理器: {e}")
-
-        # 测试专用处理器（更详细）
-        try:
-            test_handler = logging.FileHandler(
-                TEST_LOG_FILE, encoding="utf-8", mode="w"
-            )
-            test_handler.setLevel(logging.DEBUG)
-            test_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
-                    LOG_DATE_FORMAT,
+        if not any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers):
+            try:
+                file_handler = RotatingFileHandler(
+                    LOG_FILE,
+                    encoding="utf-8",
+                    mode="a",
+                    maxBytes=MAX_LOG_SIZE,
+                    backupCount=BACKUP_COUNT,
                 )
-            )
-            root_logger.addHandler(test_handler)
-        except Exception as e:
-            print(f"警告: 无法创建测试日志处理器: {e}")
+                file_handler.setLevel(logging.DEBUG)
+                file_handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
+                root_logger.addHandler(file_handler)
+            except Exception as e:
+                print(f"警告: 无法创建文件日志处理器: {e}")
 
-        # 添加控制台处理器
-        root_logger.addHandler(console_handler)
+        # 测试专用处理器
+        if not any(isinstance(h, logging.FileHandler) and "test_log" in getattr(h, 'baseFilename', '') for h in root_logger.handlers):
+            try:
+                test_handler = logging.FileHandler(
+                    TEST_LOG_FILE, encoding="utf-8", mode="w"
+                )
+                test_handler.setLevel(logging.DEBUG)
+                test_handler.setFormatter(
+                    logging.Formatter(
+                        "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
+                        LOG_DATE_FORMAT,
+                    )
+                )
+                root_logger.addHandler(test_handler)
+            except Exception as e:
+                print(f"警告: 无法创建测试日志处理器: {e}")
 
-        self._main_logger = root_logger
+        # TRIZ专用日志器
+        triz_logger = logging.getLogger("TRIZ")
+        triz_logger.setLevel(logging.DEBUG)
+
+        self._main_logger = triz_logger
         self._test_logger = logging.getLogger("TRIZ.TEST")
 
         # 记录初始化信息

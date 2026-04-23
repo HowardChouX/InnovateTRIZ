@@ -67,8 +67,20 @@ class TestProviderConfigDecryption:
 
         # 保存（会加密）
         data = settings.config.to_dict()
-        # 模拟加密
+        # 确保所有 ProviderConfig 转为 dict 后再加密和序列化
+        providers_dict: dict = {}
         for provider, config in data.get("ai_providers_config", {}).items():
+            if isinstance(config, dict):
+                d = dict(config)
+            elif hasattr(config, "to_dict"):
+                d = config.to_dict()
+            else:
+                d = {"api_key": None, "base_url": "", "model": ""}
+            providers_dict[provider] = d
+        data["ai_providers_config"] = providers_dict
+
+        # 模拟加密
+        for provider, config in data["ai_providers_config"].items():
             if config.get("api_key"):
                 config["api_key"] = _simple_encrypt(config["api_key"])
 
@@ -137,7 +149,20 @@ class TestProviderConfigDecryption:
 
         # 保存
         data = settings.config.to_dict()
+        # 确保所有 ProviderConfig 转为 dict 后再加密
+        providers_dict: dict = {}
         for provider, config in data.get("ai_providers_config", {}).items():
+            if isinstance(config, dict):
+                d = dict(config)
+            elif hasattr(config, "to_dict"):
+                d = config.to_dict()
+            else:
+                d = {"api_key": None, "base_url": "", "model": ""}
+            providers_dict[provider] = d
+        data["ai_providers_config"] = providers_dict
+
+        # 模拟加密
+        for provider, config in data["ai_providers_config"].items():
             if config.get("api_key"):
                 config["api_key"] = _simple_encrypt(config["api_key"])
 

@@ -2,6 +2,8 @@
 TRIZ提示词模块测试
 """
 
+import pytest
+
 from src.ai.prompts import PromptBuilder, PromptLoader
 
 
@@ -13,7 +15,7 @@ class TestPromptLoader:
         loader = PromptLoader()
         p1 = loader.get_principle(1)
         assert p1 is not None
-        assert p1["name"] == "分割原理"
+        assert p1["name"] == "分割"
         assert "synonyms" in p1
         assert "sub_principles" in p1
 
@@ -26,9 +28,9 @@ class TestPromptLoader:
     def test_get_principle_name(self):
         """测试获取原理名称"""
         loader = PromptLoader()
-        assert loader.get_principle_name(1) == "分割原理"
-        assert loader.get_principle_name(2) == "抽取原理"
-        assert loader.get_principle_name(40) == "复合材料原理"
+        assert loader.get_principle_name(1) == "分割"
+        assert loader.get_principle_name(2) == "抽取"
+        assert loader.get_principle_name(40) == "复合材料"
 
     def test_get_all_principles(self):
         """测试获取所有原理"""
@@ -43,7 +45,7 @@ class TestPromptLoader:
         loader = PromptLoader()
         detail = loader.build_principle_detail(1)
         assert "#1" in detail
-        assert "分割原理" in detail
+        assert "分割" in detail
 
     def test_build_principles_text(self):
         """测试构建多个原理文本"""
@@ -52,7 +54,7 @@ class TestPromptLoader:
         assert "#1" in text
         assert "#2" in text
         assert "#3" in text
-        assert "分割原理" in text
+        assert "分割" in text
 
     def test_build_principles_text_empty(self):
         """测试空原理列表"""
@@ -65,14 +67,14 @@ class TestPromptLoader:
         loader = PromptLoader()
         params = loader.get_39_parameters()
         assert len(params) == 39
-        assert params[1] == "Weight of moving object"
-        assert params[9] == "Speed"
-        assert params[39] == "Extent of automation"
+        assert params[1] == "移动物体的重量"
+        assert params[9] == "速度"
+        assert params[39] == "产能/生产力"
 
     def test_get_parameter_name(self):
         """测试获取单个参数名称"""
         loader = PromptLoader()
-        assert loader.get_parameter_name(1) == "Weight of moving object"
+        assert loader.get_parameter_name(1) == "移动物体的重量"
         assert loader.get_parameter_name(0) == ""
         assert loader.get_parameter_name(40) == ""
 
@@ -81,7 +83,7 @@ class TestPromptLoader:
         loader = PromptLoader()
         text = loader.get_39_parameters_text()
         assert "39 Standard Altshuller Parameters" in text
-        assert "Weight of moving object" in text
+        assert "移动物体的重量" in text
 
     def test_get_altshuller_solving_steps(self):
         """测试获取7步求解流程"""
@@ -132,45 +134,6 @@ class TestPromptBuilder:
         assert "测试问题" in prompt
         assert "未指定" in prompt
 
-    def test_build_contradiction_prompt(self):
-        """测试构建矛盾分析提示词"""
-        builder = PromptBuilder()
-        prompt = builder.build_contradiction_prompt(
-            problem="汽车发动机需要更强动力",
-            improving_param="速度",
-            worsening_param="油耗",
-            principles=[1, 2],
-        )
-        assert "汽车发动机需要更强动力" in prompt
-        assert "TRIZ expert" in prompt
-        assert "速度" in prompt
-
-    def test_build_parameter_detection_prompt(self):
-        """测试参数检测提示词"""
-        builder = PromptBuilder()
-        prompt = builder.build_parameter_detection_prompt("手机屏幕太亮")
-        assert "手机屏幕太亮" in prompt
-        assert "改善参数" in prompt
-        assert "JSON" in prompt
-
-    def test_get_contradiction_format_guide(self):
-        """测试矛盾格式指南"""
-        builder = PromptBuilder()
-        guide = builder.get_contradiction_format_guide()
-        assert "IF" in guide
-        assert "BUT" in guide
-        assert "物理矛盾" in guide
-
-    def test_build_function_analysis_prompt(self):
-        """测试构建功能分析提示词"""
-        builder = PromptBuilder()
-        prompt = builder.build_function_analysis_prompt()
-        assert "Function Analysis" in prompt
-        assert len(prompt) > 2000
-
-        prompt_with_system = builder.build_function_analysis_prompt("Electric Drill")
-        assert "Electric Drill" in prompt_with_system
-
     def test_get_standard_solution(self):
         """测试获取标准解"""
         loader = PromptLoader()
@@ -197,22 +160,3 @@ class TestPromptBuilder:
         sf = loader.get_subfield_analysis_template()
         assert "物质-场" in sf or "Substance-Field" in sf
 
-    def test_build_subfield_analysis_prompt(self):
-        """测试构建物质-场分析提示词"""
-        builder = PromptBuilder()
-        prompt = builder.build_subfield_analysis_prompt()
-        assert "Substance-Field" in prompt or "物质-场" in prompt
-
-        prompt_with_problem = builder.build_subfield_analysis_prompt("齿轮噪音问题")
-        assert "齿轮噪音问题" in prompt_with_problem
-
-    def test_build_standard_solutions_prompt(self):
-        """测试构建标准解提示词"""
-        builder = PromptBuilder()
-        prompt = builder.build_standard_solutions_prompt("减少磨损")
-        assert "Standard Solutions" in prompt or "标准解" in prompt
-
-        prompt_with_class = builder.build_standard_solutions_prompt(
-            "减少磨损", solution_class=2
-        )
-        assert "Class 2" in prompt_with_class

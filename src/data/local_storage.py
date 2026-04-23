@@ -187,6 +187,9 @@ class LocalStorage:
         try:
             cursor = self.conn.cursor()
 
+            # 使用显式事务确保原子性
+            cursor.execute("BEGIN TRANSACTION")
+
             # 插入会话
             cursor.execute(
                 """
@@ -238,7 +241,7 @@ class LocalStorage:
                     ),
                 )
 
-            self.conn.commit()
+            cursor.execute("COMMIT")
             logger.info(
                 f"会话保存成功: {session.id}, {len(session.solutions)}个解决方案"
             )
@@ -246,7 +249,10 @@ class LocalStorage:
 
         except sqlite3.Error as e:
             logger.error(f"保存会话失败: {e}")
-            self.conn.rollback()
+            try:
+                cursor.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
             return False
 
     def get_session(self, session_id: str) -> AnalysisSession | None:

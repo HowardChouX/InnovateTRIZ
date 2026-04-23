@@ -15,20 +15,16 @@ InnovateTRIZ 是一个基于 **Flet** 框架的 Android 移动应用，提供 AI
 python main.py --mode desktop    # 桌面窗口模式
 python main.py --mode web --port 8550  # 浏览器测试
 
-# 也可使用 flet CLI（需先安装 flet-cli）
-uv run flet run          # 桌面模式
-uv run flet run --web     # Web 模式
-
 # 运行测试
-pytest tests/ -v
-pytest tests/test_core.py -v                       # 单个文件
-pytest tests/ -k "matrix" -v                       # 按名称过滤
-pytest tests/ -k "ai and not status" -v           # 组合过滤
+uv run pytest tests/ -v
+uv run pytest tests/test_core.py -v              # 单个文件
+uv run pytest tests/ -k "matrix" -v              # 按名称过滤
+uv run pytest tests/ -k "ai and not status" -v   # 组合过滤
 
 # 代码质量检查
-black src/ tests/
-ruff check src/ tests/
-mypy src/
+uv run black src/ tests/
+uv run ruff check src/ tests/
+uv run mypy src/
 
 # 构建 Android APK（需 JDK 17 + Android SDK）
 flet build apk
@@ -67,13 +63,13 @@ src/main.py → TRIZApp.main(page)              # 应用入口（pyproject.toml 
 └── TRIZAppShell.show()                        # 3-Tab 导航外壳
         ├── MatrixTab          # Tab1: 矛盾矩阵分析（主功能）
         ├── PrinciplesTab      # Tab2: 40 发明原理库
-        └── SettingsTab        # Tab3: 全局设置 + 历史管理（查看日志、清空全部）
+        └── SettingsTab        # Tab3: 全局设置 + 历史管理
 ```
 
 ### UI 层级
 
 - `TRIZAppShell`（`src/ui/app_shell.py`）：管理 `ft.NavigationBar` + Tab 显隐切换
-- `TabContent(ft.Column)` 是所有 Tab 的基类，`on_show()` 在 Tab 首次显示时调用，`on_hide()` 在 Tab 隐藏时调用
+- `TabContent(ft.Column)` 是所有 Tab 的基类，`on_show()` 在 Tab 首次显示时调用
 - `AIStateManager`（`src/ui/state/ai_state.py`）：观察者模式单例，广播 AI 启用/连接状态变更
 
 ### 全局单例模式
@@ -88,9 +84,37 @@ src/main.py → TRIZApp.main(page)              # 应用入口（pyproject.toml 
 | `get_triz_logger()` | `src/utils/logger.py` | `TRIZLogger` |
 | `get_ai_state_manager()` | `src/ui/state/ai_state.py` | `AIStateManager` |
 
+### 矛盾矩阵
+
+两个矩阵均已实现，内置于 `src/data/triz_constants.py`：
+
+| 矩阵 | 参数数 | 记录数 | 说明 |
+|------|--------|--------|------|
+| 39 矛盾矩阵 | 39 | 1189 条 | 稀疏矩阵，原始数据 |
+| 48 矛盾矩阵 | 48 | 2304 条 | 完整48×48，从triz48.xls导入 |
+
+- 参数名统一使用 xls 标准翻译（如"明亮度"而非"亮度"）
+- `ContradictionMatrix`（`matrix_selector.py`）：查询接口，`matrix_type` 属性区分 "39"/"48"
+- `MatrixManager.get_matrix(matrix_type)`：获取指定类型矩阵实例
+- `LocalTRIZEngine.detect_parameters()`：支持切换 `matrix_type="48"`
+
+### 用户操作流程
+
+```
+输入问题 → (可选)AI分析参数 → 选择参数 → 点击"查询原理" → 点击"头脑风暴"
+                                          ↓
+                              原理缓存到 _current_matrix_principles
+                                          ↓
+                              头脑风暴使用缓存的原理，不再重新查询
+```
+
+**关键约束**：
+1. 查询原理前必须先选择至少一个参数（改善或恶化）
+2. 头脑风暴前必须先点击"查询原理"填充缓存
+
 ### 数据流
 
-- 所有 TRIZ 数据**内置于** `src/data/triz_constants.py`（1189 条矩阵记录），无外部文件依赖
+- **TRIZ 数据内置**：39 矩阵 + 48 矩阵 + 40 发明原理，全部在 `triz_constants.py` 中，无外部文件依赖
 - `LocalStorage`（SQLite）存储分析会话，Android 下使用 DELETE 日志模式，桌面环境使用 WAL
 - `AppSettings` 持久化到 `FLET_APP_STORAGE_DATA/config.json`，API Key 用 Base64 简单混淆
 - `LocalStorage` 和 `AppSettings` 都优先使用 `FLET_APP_STORAGE_DATA` 环境变量目录
@@ -101,39 +125,32 @@ src/main.py → TRIZApp.main(page)              # 应用入口（pyproject.toml 
 - `AIManager` 管理连接状态：`is_enabled()` = 已配置，`is_connected()` = 实际可用
 - 多提供商配置存储在 `config.json`，通过 `AppSettings.ai_providers_config` 管理
 - **AI 参数检测**（`AIClient.detect_parameters`）：
-  - 严格的 prompt 要求 AI 必须从 39 个工程参数中精确选择，不允许创造/缩写参数名
-  - temperature=0 确保确定性输出
-  - 最多重试 2 次，如果 AI 返回参数为空则重新思考
-  - AI 不可用或所有重试失败时自动降级到本地引擎（`LocalTRIZEngine.detect_parameters`）
-- **头脑风暴遍历注入**：`TRIZEngine.generate_solutions_iterative()` 遍历每个原理单独调用 AI
+  - 严格的 prompt 要求 AI 必须从 39 个工程参数中精确选择
+  - temperature=0 确保确定性输出，最多重试 2 次
+  - AI 不可用时自动降级到 `LocalTRIZEngine.detect_parameters`
+- `PromptBuilder`（`src/ai/prompts/builder.py`）：只有 `build_solution_prompt` 和 `build_single_principle_solution_prompt` 两个方法
 
-### 矛盾矩阵
+### 模块导入约定
 
-- **39 矛盾矩阵**：完整实现，1189 条记录
-- **48 矛盾矩阵**：预留接口，UI 可切换但功能未实现
+- `PromptBuilder` 从 `data.triz_constants` 导入 `PRINCIPLE_NAMES`（原理名称，无"原理"后缀）
+- `PrincipleService` 使用 `PRINCIPLE_NAMES` 作为原理显示名称
+- `matrix_selector.py` 从 `data.triz_constants` 导入矩阵数据
+- 测试文件需将 `src/` 目录加入 `sys.path`，参考 `tests/conftest.py`
 
 ## 待开发功能
 
-以下功能已设计但尚未实现：
-
 | 功能 | 描述 | 相关文件 |
-|------|------|----------|
-| **48 矛盾矩阵** | 48个工程参数的矛盾矩阵查询 | `src/core/matrix_selector.py` |
-| **功能分析** | 分析技术系统的组件、功能和关系 | `builder.py` (已删除) |
+|------|------|---------|
 | **物质-场分析** | 识别S1-S2-F模型并应用标准解 | `templates.py` |
 | **76标准解应用** | 基于物质-场分析推荐标准解 | `templates.py` |
-| **物理矛盾求解** | 分离原理求解物理矛盾 | `builder.py` (已删除) |
+| **功能分析** | 分析技术系统的组件、功能和关系 | （规划中） |
+| **物理矛盾求解** | 分离原理求解物理矛盾 | （规划中） |
 
-实现优先级：48矛盾矩阵 > 功能分析 > 物质-场分析 > 76标准解 > 物理矛盾
-
-### 提示词系统
-
-- `PromptBuilder`（`src/ai/prompts/builder.py`）：构建各类提示词
-- `PromptLoader`（`src/ai/prompts/loader.py`）：加载40发明原理详情
+> 注意：`builder.py` 中的 `build_function_analysis_prompt` 和 `build_physical_contradiction_prompt` 方法尚未实现
 
 ## 关键约束
 
-1. **数据内置**：禁止依赖外部 Excel/CSV，所有数据在 `triz_constants.py` 的 Python 代码中
+1. **数据内置**：禁止依赖外部 Excel/CSV，所有数据在 Python 代码中
 2. **AI 默认关闭**：用户必须主动开启
 3. **纯 Python 依赖**：打包前确认所有二进制包有 Android wheel
 4. **异步模式**：所有 Flet 事件处理器和页面更新都使用 `async/await`
@@ -141,16 +158,19 @@ src/main.py → TRIZApp.main(page)              # 应用入口（pyproject.toml 
 ## 调试技巧
 
 ```bash
-# 桌面模式运行时日志同时输出到控制台和文件
-# 日志路径（按优先级）：
-# 1. FLET_APP_STORAGE_DATA/logs/ （Flet 推荐，平台预创建）
-# 2. ~/.config/triz-assistant/logs/ （桌面环境回退）
-# 3. .triz_logs/ （Android 回退）
-
 # 快速验证数据完整性
-python -c "
+uv run python -c "
 from src.data.triz_constants import get_triz_data_loader
 loader = get_triz_data_loader()
 print(f'参数:{len(loader.get_all_params())}, 矩阵:{len(loader.get_contradiction_matrix())}, 原理:{len(loader.get_40_principles())}')
 "
+
+# 运行测试
+uv run pytest tests/ -v
+
+# 日志路径（按优先级）：
+# 1. FLET_APP_STORAGE_DATA/logs/ （Flet 推荐）
+# 2. ~/.config/triz-assistant/logs/ （桌面环境回退）
+# 3. .triz_logs/ （Android 回退）
 ```
+

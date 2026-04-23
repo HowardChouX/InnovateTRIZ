@@ -74,7 +74,8 @@ class TestParameterPicker:
 
     def test_parameter_categories_defined(self):
         """测试参数分类是否定义"""
-        categories = ParameterPicker.PARAM_CATEGORIES
+        from src.ui.parameter_ui import get_param_categories
+        categories = get_param_categories("39")
         assert "几何参数" in categories
         assert "力学参数" in categories
         assert "能量参数" in categories
@@ -82,9 +83,10 @@ class TestParameterPicker:
     def test_all_39_params_covered(self):
         """测试39个参数是否都被覆盖"""
         from src.config.constants import ENGINEERING_PARAMETERS_39
+        from src.ui.parameter_ui import get_param_categories
 
         all_params = []
-        for category, params in ParameterPicker.PARAM_CATEGORIES.items():
+        for category, params in get_param_categories("39").items():
             all_params.extend(params)
 
         for param in ENGINEERING_PARAMETERS_39:

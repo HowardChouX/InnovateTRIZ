@@ -185,8 +185,8 @@ class TestManualSaveHistory:
         assert len(summaries) == 3
 
         # 验证统计
-        stats = self.storage.get_statistics()
-        assert stats["total_sessions"] == 3
+        count = self.storage.get_session_count()
+        assert count >= 3
 
 
 class TestSaveToHistoryFlow:

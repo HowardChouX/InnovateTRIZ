@@ -1,6 +1,6 @@
 """
 参数选择器模块
-提供39个工程参数的可视化选择界面
+提供39/48个工程参数的可视化选择界面
 """
 
 import logging
@@ -11,6 +11,111 @@ import flet as ft
 from config.constants import COLORS
 
 logger = logging.getLogger(__name__)
+
+
+# 39参数分类
+PARAM_CATEGORIES_39 = {
+    "几何参数": [
+        "移动物体的重量",
+        "静止物体的重量",
+        "移动物体的长度",
+        "静止物体的长度",
+        "移动物体的面积",
+        "静止物体的面积",
+        "移动物体的体积",
+        "静止物体的体积",
+    ],
+    "力学参数": [
+        "速度",
+        "力",
+        "张力/压力",
+        "形状",
+        "结构的稳定性",
+        "强度",
+        "移动物体的耐久性",
+        "静止物体的耐久性",
+        "温度",
+        "明亮度",
+    ],
+    "能量参数": ["移动物体消耗的能量", "静止物体消耗的能量", "功率", "能量的浪费"],
+    "物质参数": ["物质的浪费", "信息的遗漏", "时间的浪费", "物质的数量", "可靠性"],
+    "测量参数": ["测量的准确度", "制造的准确度"],
+    "有害因素参数": ["外来有害因素", "有害的副作用"],
+    "制造参数": [
+        "可制造性",
+        "使用的方便性",
+        "易维护性",
+        "适应性",
+        "装置的复杂性",
+        "控制的复杂性",
+        "自动化程度",
+        "生产率",
+    ],
+}
+
+# 48参数分类（扩展后9个参数）
+PARAM_CATEGORIES_48 = {
+    "几何参数": [
+        "移动物体的重量",
+        "静止物体的重量",
+        "移动物体的长度",
+        "静止物体的长度",
+        "移动物体的面积",
+        "静止物体的面积",
+        "移动物体的体积",
+        "静止物体的体积",
+    ],
+    "力学参数": [
+        "速度",
+        "力",
+        "张力/压力",
+        "形状",
+        "物体的稳定性",
+        "强度",
+        "移动物体的持久性",
+        "静止物体的持久性",
+        "温度",
+        "亮度",
+    ],
+    "能量参数": ["移动物体用的能源", "非移动物体用的能源", "功率", "能源的浪费"],
+    "物质参数": [
+        "物质的浪费",
+        "信息的流失",
+        "时间的浪费",
+        "物质的总量",
+        "可靠性",
+        "物质的数量",
+    ],
+    "测量参数": ["测量的准度", "制造的准度"],
+    "有害因素参数": ["作用于物体的有害因素", "有害的副作用"],
+    "制造参数": [
+        "制造性",
+        "使用的便利性",
+        "修复性",
+        "适应性",
+        "设备的复杂性",
+        "控制的复杂性",
+        "自动化程度",
+        "产能/生产力",
+    ],
+    "信息参数": ["信息的数量"],
+    "性能参数": [
+        "移动物体的耐久性",
+        "结构的稳定性",
+        "明亮度",
+        "运行效率",
+        "兼容性/连通性",
+        "安全性",
+        "美观",
+    ],
+}
+
+
+def get_param_categories(matrix_type: str) -> dict[str, list[str]]:
+    """根据矩阵类型获取参数分类"""
+    if matrix_type == "48":
+        return PARAM_CATEGORIES_48.copy()
+    return PARAM_CATEGORIES_39.copy()
 
 
 def _hex_to_flet_color(hex_color: str, alpha: int = 255) -> str:
@@ -31,46 +136,6 @@ def _hex_to_flet_color(hex_color: str, alpha: int = 255) -> str:
 class ParameterPicker:
     """参数选择器类"""
 
-    # 参数分类
-    PARAM_CATEGORIES = {
-        "几何参数": [
-            "移动物体的重量",
-            "静止物体的重量",
-            "移动物体的长度",
-            "静止物体的长度",
-            "移动物体的面积",
-            "静止物体的面积",
-            "移动物体的体积",
-            "静止物体的体积",
-        ],
-        "力学参数": [
-            "速度",
-            "力",
-            "张力/压力",
-            "形状",
-            "物体的稳定性",
-            "强度",
-            "移动物体的持久性",
-            "静止物体的持久性",
-            "温度",
-            "亮度",
-        ],
-        "能量参数": ["移动物体用的能源", "非移动物体用的能源", "功率", "能源的浪费"],
-        "物质参数": ["物质的浪费", "信息的流失", "时间的浪费", "物质的总量", "可靠性"],
-        "测量参数": ["测量的准度", "制造的准度"],
-        "有害因素参数": ["作用于物体的有害因素", "有害的副作用"],
-        "制造参数": [
-            "制造性",
-            "使用的便利性",
-            "修复性",
-            "适应性",
-            "设备的复杂性",
-            "控制的复杂性",
-            "自动化程度",
-            "产能/生产力",
-        ],
-    }
-
     def __init__(
         self,
         page: ft.Page,
@@ -78,6 +143,7 @@ class ParameterPicker:
         current_values: list[str] | None = None,
         on_selected: Callable | None = None,
         multi_select: bool = True,
+        matrix_type: str = "39",
     ):
         """
         初始化参数选择器
@@ -88,20 +154,22 @@ class ParameterPicker:
             current_values: 当前已选值列表
             on_selected: 选择后的回调函数
             multi_select: 是否支持多选
+            matrix_type: 矩阵类型 ("39" 或 "48")
         """
         self.page = page
         self.param_type = param_type
         self.current_values = list(current_values) if current_values else []
         self.on_selected = on_selected
         self.multi_select = multi_select
+        self.matrix_type = matrix_type
 
         self.dialog: ft.AlertDialog | None = None
         self.search_field: ft.TextField | None = None
         self.content_column: ft.Column | None = None
-        self.filtered_params: dict[str, list[str]] = self.PARAM_CATEGORIES.copy()
+        self.filtered_params: dict[str, list[str]] = get_param_categories(matrix_type)
 
         logger.info(
-            f"ParameterPicker初始化: type={param_type}, current={current_values}, multi={multi_select}"
+            f"ParameterPicker初始化: type={param_type}, current={current_values}, multi={multi_select}, matrix={matrix_type}"
         )
 
     def show(self) -> None:
@@ -189,11 +257,11 @@ class ParameterPicker:
     def _filter_params(self, query: str) -> None:
         """过滤参数"""
         if not query:
-            self.filtered_params = self.PARAM_CATEGORIES.copy()
+            self.filtered_params = get_param_categories(self.matrix_type)
             return
 
         self.filtered_params = {}
-        for category, params in self.PARAM_CATEGORIES.items():
+        for category, params in get_param_categories(self.matrix_type).items():
             # 使用更精确的匹配
             filtered = [p for p in params if query in p.lower()]
             if filtered:

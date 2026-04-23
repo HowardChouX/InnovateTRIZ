@@ -27,6 +27,7 @@ class MatrixTab(TabContent):
         self,
         page: ft.Page,
         storage: LocalStorage,
+        app_shell: Any = None,
         on_navigate_to_principle: Callable | None = None,
     ):
         """
@@ -35,10 +36,12 @@ class MatrixTab(TabContent):
         Args:
             page: Flet页面对象
             storage: 本地存储
+            app_shell: 应用外壳管理器（用于Tab切换）
             on_navigate_to_principle: 跳转到原理详情的回调
         """
         self._page = page
         self.storage = storage
+        self._app_shell = app_shell
         self.on_navigate_to_principle = on_navigate_to_principle
         self._principle_service = get_principle_service()
         self._matrix_manager = get_matrix_manager()
@@ -54,6 +57,7 @@ class MatrixTab(TabContent):
         self.improving_params: list[str] = []
         self.worsening_params: list[str] = []
         self.solution_count = 5
+        self.max_param_count = 1
         self.problem_text = ""
 
         # UI组件引用
@@ -67,6 +71,8 @@ class MatrixTab(TabContent):
         self.result_container: ft.Container | None = None
         self.brainstorm_loading: ft.Container
         self.ai_analysis_result_container: ft.Container | None = None
+        self._param_count_minus_btn: ft.IconButton | None = None
+        self._param_count_plus_btn: ft.IconButton | None = None
 
         # 当前会话
         self._current_matrix_session: AnalysisSession | None = None
@@ -84,15 +90,160 @@ class MatrixTab(TabContent):
         super().__init__("matrix")
 
     def _show_snack_bar(
-        self, message: str, duration: int = 3000  # noqa: ARG002
+        self,
+        message: str,
+        action_text: str | None = None,
+        action_callback: Callable | None = None,
+        duration: int = 3000,  # noqa: ARG002
     ) -> None:
-        """显示弹窗提示消息"""
+        """显示弹窗提示消息
+
+        Args:
+            message: 提示消息
+            action_text: 可选的操作按钮文本（如"去设置"）
+            action_callback: 可选的操作按钮回调
+        """
+        actions = [ft.TextButton("确定", on_click=lambda _: self._page.pop_dialog())]
+        if action_text and action_callback:
+            actions.insert(
+                0,
+                ft.TextButton(
+                    action_text,
+                    on_click=lambda _: [self._page.pop_dialog(), action_callback()],
+                ),
+            )
+        dlg = ft.AlertDialog(modal=True, content=ft.Text(message), actions=actions)
+        self._page.show_dialog(dlg)
+
+    def _show_ai_unavailable_dialog(
+        self,
+        message: str,
+        on_use_local: Callable[[], None],
+    ) -> None:
+        """显示AI不可用时的选择对话框
+
+        Args:
+            message: 提示消息
+            on_use_local: 点击"使用本地引擎"的回调
+        """
         dlg = ft.AlertDialog(
             modal=True,
             content=ft.Text(message),
-            actions=[ft.TextButton("确定", on_click=lambda _: self._page.pop_dialog())],
+            actions=[
+                ft.TextButton("使用本地引擎", on_click=lambda _: [self._page.pop_dialog(), on_use_local()]),
+                ft.TextButton("去设置", on_click=lambda _: [self._page.pop_dialog(), (self._app_shell.switch_to_tab("settings") if self._app_shell else None)]),
+                ft.TextButton("取消", on_click=lambda _: self._page.pop_dialog()),
+            ],
         )
         self._page.show_dialog(dlg)
+
+    def _use_local_engine_detect_params(self, problem: str) -> dict[str, Any]:
+        """使用本地引擎检测参数"""
+        try:
+            from core.triz_engine import LocalTRIZEngine
+
+            engine = LocalTRIZEngine()
+            result = engine.detect_parameters(problem)
+            # 替换explanation为完整的提示文字
+            result["explanation"] = "本地算法自动检测参数误差较大，请前往全局设置AI设置中进行配置"
+            return result
+        except Exception as e:
+            logger.error(f"本地引擎参数检测失败: {e}")
+            return {
+                "improving": [],
+                "worsening": [],
+                "explanation": "本地算法自动检测参数误差较大，请前往全局设置AI设置中进行配置",
+            }
+
+    def _on_use_local_engine_detect_params(self, problem: str) -> None:
+        """使用本地引擎检测参数的UI回调"""
+        # 本地引擎分析时限制参数数量为1
+        self._update_param_counter_state(True)
+        result = self._use_local_engine_detect_params(problem)
+        improving = result.get("improving", [])
+        worsening = result.get("worsening", [])
+        explanation = result.get("explanation", "")
+
+        # 确保是列表格式
+        if isinstance(improving, str):
+            improving = [improving] if improving else []
+        if isinstance(worsening, str):
+            worsening = [worsening] if worsening else []
+
+        if improving:
+            self.improving_params = improving
+            display = ", ".join(improving[:2])
+            if len(improving) > 2:
+                display += f"...(+{len(improving)-2})"
+            self.improving_text.value = f"已选: {display}"
+            self.improving_text.color = ft.Colors.GREEN
+        else:
+            self.improving_params = []
+            self.improving_text.value = "未选择"
+            self.improving_text.color = ft.Colors.GREY
+
+        if worsening:
+            self.worsening_params = worsening
+            display = ", ".join(worsening[:2])
+            if len(worsening) > 2:
+                display += f"...(+{len(worsening)-2})"
+            self.worsening_text.value = f"已选: {display}"
+            self.worsening_text.color = ft.Colors.GREEN
+        else:
+            self.worsening_params = []
+            self.worsening_text.value = "未选择"
+            self.worsening_text.color = ft.Colors.GREY
+
+        # 更新AI分析结果展示
+        assert self.ai_analysis_result_container is not None
+        extra_controls: list[ft.Control] = []
+        if explanation:
+            extra_controls += [
+                ft.Container(height=5),
+                ft.Container(
+                    content=ft.Text(
+                        explanation, size=11, color=ft.Colors.GREY_600
+                    ),
+                    padding=8,
+                    bgcolor=ft.Colors.GREY_100,
+                    border_radius=5,
+                ),
+            ]
+        self.ai_analysis_result_container.content = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        ft.Icon(ft.icons.Icons.LIGHTBULB, color=ft.Colors.GREEN, size=20),
+                        ft.Text(
+                            " 本地分析参数结果",
+                            size=14,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.GREEN,
+                        ),
+                    ],
+                    spacing=5,
+                ),
+                ft.Container(height=5),
+                ft.Container(
+                    content=ft.Text(
+                        f"改善参数: {', '.join(improving) if improving else '未识别'}",
+                        size=12,
+                        color=ft.Colors.GREEN if improving else ft.Colors.GREY,
+                    )
+                ),
+                ft.Container(
+                    content=ft.Text(
+                        f"恶化参数: {', '.join(worsening) if worsening else '未识别'}",
+                        size=12,
+                        color=ft.Colors.ORANGE if worsening else ft.Colors.GREY,
+                    )
+                ),
+            ]
+            + extra_controls,
+            spacing=3,
+        )
+        self.ai_analysis_result_container.visible = True
+        self._page.update()
 
     def on_show(self) -> None:
         """当Tab显示时调用"""
@@ -104,6 +255,16 @@ class MatrixTab(TabContent):
             self._update_ai_buttons()
         except Exception as e:
             logger.error(f"MatrixTab on_show error: {e}", exc_info=True)
+
+    def on_hide(self) -> None:
+        """当Tab隐藏时调用，取消订阅避免内存泄漏"""
+        try:
+            from ui.state import get_ai_state_manager
+
+            ai_state = get_ai_state_manager()
+            ai_state.unsubscribe(self._on_ai_state_changed)
+        except Exception as e:
+            logger.error(f"MatrixTab on_hide error: {e}", exc_info=True)
 
     def _mark_ai_disconnected(self) -> None:
         """标记AI为未连接状态，并通知AI状态变化"""
@@ -129,36 +290,59 @@ class MatrixTab(TabContent):
             logger.error(f"_on_ai_state_changed error: {e}", exc_info=True)
 
     def _update_ai_buttons(self) -> None:
-        """根据AI连接状态启用/禁用AI相关按钮"""
+        """根据AI可用状态启用/禁用AI相关按钮"""
         from ai.ai_client import get_ai_manager
 
         ai_manager = get_ai_manager()
-        # 使用实际连接状态，而非仅配置状态
-        is_ai_connected = ai_manager.is_enabled() and ai_manager.is_connected()
+        # 按钮可点击条件：AI已启用（is_enabled），实际可用由弹窗处理
+        is_ai_enabled = ai_manager.is_enabled()
 
         # 安全访问属性，避免在UI构建前被调用时出错
         analyze_btn = getattr(self, 'analyze_params_btn', None)
         brainstorm_btn = getattr(self, 'brainstorm_btn', None)
 
         if analyze_btn:
-            analyze_btn.disabled = not is_ai_connected
+            analyze_btn.disabled = not is_ai_enabled
         if brainstorm_btn:
-            brainstorm_btn.disabled = not is_ai_connected
+            brainstorm_btn.disabled = not is_ai_enabled
 
     def _build_ui(self) -> None:
         """构建UI"""
         self.controls.clear()
+
+        # 矩阵类型选择下拉框
+        self.matrix_type_dropdown = ft.Dropdown(
+            label="矛盾矩阵类型",
+            options=[
+                ft.dropdown.Option("39", "39×39 矛盾矩阵"),
+                ft.dropdown.Option("48", "48×48 矛盾矩阵"),
+            ],
+            value="39",
+            on_select=self._on_matrix_type_changed,
+            width=300,
+        )
 
         # 标题
         title = ft.Container(
             content=ft.Row(
                 controls=[
                     ft.Icon(ft.icons.Icons.GRID_ON, color=COLORS["primary"], size=28),
-                    ft.Text("39矛盾矩阵分析", size=20, weight=ft.FontWeight.BOLD),
+                    ft.Text("矛盾矩阵分析", size=20, weight=ft.FontWeight.BOLD),
                 ],
                 alignment=ft.MainAxisAlignment.START,
             ),
             padding=15,
+        )
+
+        # 矩阵类型选择区
+        matrix_selector = ft.Container(
+            content=ft.Row(
+                controls=[
+                    self.matrix_type_dropdown,
+                ],
+                spacing=10,
+            ),
+            padding=ft.Padding.only(left=15, bottom=10),
         )
 
         # AI分析结果展示区域（必须在problem_section之前创建）
@@ -184,6 +368,32 @@ class MatrixTab(TabContent):
             on_click=self._on_ai_analyze_params,
             style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=COLORS["primary"]),
             scale=0.9,
+        )
+
+        # 参数数量限制输入
+        self.max_param_display = ft.Text("1", size=16, weight=ft.FontWeight.BOLD)
+        self._param_count_minus_btn = ft.IconButton(
+            icon=ft.icons.Icons.REMOVE_CIRCLE,
+            on_click=self._on_param_count_minus,
+            scale=0.8,
+        )
+        self._param_count_plus_btn = ft.IconButton(
+            icon=ft.icons.Icons.ADD_CIRCLE,
+            on_click=self._on_param_count_plus,
+            scale=0.8,
+        )
+
+        param_counter = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Text("参数上限:", size=12),
+                    self._param_count_minus_btn,
+                    self.max_param_display,
+                    self._param_count_plus_btn,
+                ],
+                spacing=2,
+            ),
+            padding=5,
         )
 
         self.ai_analyze_loading = ft.ProgressBar(visible=False, width=150)
@@ -214,7 +424,7 @@ class MatrixTab(TabContent):
                     ft.Container(content=self.problem_input, expand=True),
                     ft.Container(height=5),
                     ft.Row(
-                        controls=[self.analyze_params_btn, self.ai_analyze_loading],
+                        controls=[self.analyze_params_btn, param_counter, self.ai_analyze_loading],
                         spacing=10,
                     ),
                     # AI分析结果展示（在AI分析参数按钮下方）
@@ -333,6 +543,7 @@ class MatrixTab(TabContent):
         self.controls.extend(
             [
                 title,
+                matrix_selector,
                 ft.Divider(),
                 problem_section,
                 ft.Divider(),
@@ -388,12 +599,64 @@ class MatrixTab(TabContent):
         """问题描述变化"""
         self.problem_text = e.control.value.strip()
 
+    async def _on_matrix_type_changed(self, e: ft.Event[ft.Dropdown]) -> None:
+        """矩阵类型切换"""
+        matrix_type = e.control.value if e.control.value else "39"
+        self._matrix_manager.set_current_matrix(matrix_type)
+
+        # 清空当前选择（不是设置为完整列表！）
+        self.improving_params = []
+        self.worsening_params = []
+
+        # 清空当前选择和结果
+        if self.improving_text:
+            self.improving_text.value = "未选择"
+            self.improving_text.color = ft.Colors.GREY
+        if self.worsening_text:
+            self.worsening_text.value = "未选择"
+            self.worsening_text.color = ft.Colors.GREY
+
+        # 清空结果区域
+        if self.matrix_result_container:
+            self.matrix_result_container.content = ft.Column(scroll=ft.ScrollMode.AUTO)
+        if self.brainstorm_result_container:
+            self.brainstorm_result_container.content = ft.Column(scroll=ft.ScrollMode.AUTO)
+
+        logger.info(f"矩阵类型切换为: {matrix_type}")
+
+    def _on_param_count_minus(self, _: ft.ControlEvent) -> None:
+        """减少参数数量"""
+        if self.max_param_count > 1:
+            self.max_param_count -= 1
+            self.max_param_display.value = str(self.max_param_count)
+
+    def _on_param_count_plus(self, _: ft.ControlEvent) -> None:
+        """增加参数数量"""
+        if self.max_param_count < 10:
+            self.max_param_count += 1
+            self.max_param_display.value = str(self.max_param_count)
+
+    def _update_param_counter_state(self, disabled: bool) -> None:
+        """更新参数数量控件状态（本地引擎时禁用为1，AI时不限制）"""
+        if self._param_count_minus_btn:
+            self._param_count_minus_btn.disabled = disabled
+        if self._param_count_plus_btn:
+            self._param_count_plus_btn.disabled = disabled
+        if disabled:
+            self.max_param_count = 1
+            self.max_param_display.value = "1"
+        self._page.update()
+
+
     async def _on_ai_analyze_params(self, e: ft.Event) -> None:  # noqa: ARG002
         """AI分析参数按钮点击"""
         # Guard: ensure UI components are initialized
         if not self.improving_text or not self.worsening_text:
             self._show_snack_bar("界面未就绪，请重试")
             return
+
+        # 重置参数数量控件（本地引擎分析后可能处于禁用状态）
+        self._update_param_counter_state(False)
 
         problem = self.problem_input.value.strip() if self.problem_input else ""
 
@@ -405,9 +668,21 @@ class MatrixTab(TabContent):
         from ai.ai_client import get_ai_manager
 
         ai_manager = get_ai_manager()
+        use_local_fallback = False
+        fallback_reason = ""
+
         if not ai_manager.is_enabled():
-            self._show_snack_bar("请先在设置中配置AI")
-            return
+            use_local_fallback = True
+            fallback_reason = "AI未配置，将使用本地算法"
+        else:
+            client = ai_manager.get_client()
+            if not client or not client.is_available():
+                use_local_fallback = True
+                fallback_reason = "AI连接失败，将使用本地算法"
+
+        # 本地引擎分析时限制参数数量为1
+        if use_local_fallback:
+            self._update_param_counter_state(True)
 
         # 显示加载状态
         self.ai_analyze_loading.visible = True
@@ -415,22 +690,26 @@ class MatrixTab(TabContent):
         self._page.update()
 
         try:
-            client = ai_manager.get_client()
-            if not client:
-                raise RuntimeError("AI客户端未初始化")
-            result = await client.detect_parameters(problem)
+            if use_local_fallback:
+                result = self._use_local_engine_detect_params(problem)
+            else:
+                client = ai_manager.get_client()
+                if not client:
+                    raise RuntimeError("AI客户端未初始化")
+                result = await client.detect_parameters(problem, self._matrix_manager.current_matrix_type, self.max_param_count)
 
-            # 检查是否有错误
-            if result.get("error"):
-                logger.error(f"AI参数检测返回错误: {result.get('error')}")
-                self._mark_ai_disconnected()
-                self._show_snack_bar(f"AI分析失败: {result.get('error')}")
-                return
+                # 检查是否有错误
+                if result.get("error"):
+                    logger.error(f"AI参数检测返回错误: {result.get('error')}")
+                    self._show_ai_unavailable_dialog(
+                        f"AI分析失败: {result.get('error')}",
+                        on_use_local=lambda: self._on_use_local_engine_detect_params(problem),
+                    )
+                    return
 
-            # AI调用成功，标记为已连接
-            ai_manager.set_connected(True)
-
-            logger.info(f"AI参数检测结果: {result}")
+                # AI调用成功，标记为已连接
+                ai_manager.set_connected(True)
+                logger.info(f"AI参数检测结果: {result}")
 
             improving = result.get("improving", [])
             worsening = result.get("worsening", [])
@@ -468,23 +747,43 @@ class MatrixTab(TabContent):
                 logger.info("AI未返回恶化参数")
 
             explanation = result.get("explanation", "")
+            from_local = result.get("from_local_fallback", False)
 
-            # 更新AI分析结果展示
+            # 根据是否使用本地引擎选择标题样式
+            if from_local:
+                result_title = "本地分析参数结果"
+                result_icon = ft.icons.Icons.LIGHTBULB
+                result_color = ft.Colors.GREEN
+            else:
+                result_title = "AI参数分析结果"
+                result_icon = ft.icons.Icons.LIGHTBULB
+                result_color = COLORS["secondary"]
+
+            # 更新分析结果展示
             assert self.ai_analysis_result_container is not None
+            extra_controls: list[ft.Control] = []
+            if explanation:
+                extra_controls += [
+                    ft.Container(height=5),
+                    ft.Container(
+                        content=ft.Text(
+                            explanation, size=11, color=ft.Colors.GREY_600
+                        ),
+                        padding=8,
+                        bgcolor=ft.Colors.GREY_100,
+                        border_radius=5,
+                    ),
+                ]
             self.ai_analysis_result_container.content = ft.Column(
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(
-                                ft.icons.Icons.LIGHTBULB,
-                                color=COLORS["secondary"],
-                                size=20,
-                            ),
+                            ft.Icon(result_icon, color=result_color, size=20),
                             ft.Text(
-                                " AI参数分析结果",
+                                f" {result_title}",
                                 size=14,
                                 weight=ft.FontWeight.BOLD,
-                                color=COLORS["secondary"],
+                                color=result_color,
                             ),
                         ],
                         spacing=5,
@@ -505,30 +804,18 @@ class MatrixTab(TabContent):
                         )
                     ),
                 ]
-                + (
-                    [
-                        ft.Container(height=5),
-                        ft.Container(
-                            content=ft.Text(
-                                explanation, size=11, color=ft.Colors.GREY_600
-                            ),
-                            padding=8,
-                            bgcolor=ft.Colors.GREY_100,
-                            border_radius=5,
-                        ),
-                    ]
-                    if explanation
-                    else []
-                ),
+                + extra_controls,
                 spacing=3,
             )
             self.ai_analysis_result_container.visible = True
 
         except Exception as ex:
             logger.error(f"AI参数分析失败: {ex}")
-            # AI调用失败，标记为未连接
-            self._mark_ai_disconnected()
-            self._show_snack_bar(f"AI分析失败: {str(ex)}")
+            self._show_ai_unavailable_dialog(
+                f"AI分析失败: {str(ex)}",
+                on_use_local=lambda: self._on_use_local_engine_detect_params(problem),
+            )
+            return
         finally:
             self.ai_analyze_loading.visible = False
             self.analyze_params_btn.disabled = False
@@ -541,12 +828,14 @@ class MatrixTab(TabContent):
             if param_type == "improving"
             else self.worsening_params
         )
+        matrix_type = self._matrix_manager.current_matrix_type
         picker = ParameterPicker(
             page=self._page,
             param_type=param_type,
             current_values=current,
             on_selected=self._on_param_selected,
             multi_select=True,
+            matrix_type=matrix_type,
         )
         picker.show()
 
@@ -590,9 +879,9 @@ class MatrixTab(TabContent):
 
         logger.info(f"_on_analyze开始: improving_params={self.improving_params}, worsening_params={self.worsening_params}")
 
-        # 至少需要问题描述或参数选择之一
-        if not problem and not self.improving_params and not self.worsening_params:
-            self._show_snack_bar("请输入问题描述或选择参数")
+        # 必须选择至少一个参数才能查询
+        if not self.improving_params and not self.worsening_params:
+            self._show_snack_bar("请先选择改善参数或恶化参数")
             return
 
         # 显示加载状态
@@ -602,11 +891,11 @@ class MatrixTab(TabContent):
 
         try:
             # 纯本地矩阵查询
-            matrix = self._matrix_manager.get_matrix("39")
+            matrix = self._matrix_manager.get_current_matrix()
 
             all_principle_ids = []
-            improving_list = self.improving_params if self.improving_params else [None]
-            worsening_list = self.worsening_params if self.worsening_params else [None]
+            improving_list = self.improving_params if self.improving_params else []
+            worsening_list = self.worsening_params if self.worsening_params else []
 
             for imp in improving_list:
                 for wors in worsening_list:
@@ -676,13 +965,30 @@ class MatrixTab(TabContent):
 
         ai_manager = get_ai_manager()
         if not ai_manager.is_enabled():
-            self._show_snack_bar("请先开启AI并配置API密钥")
+            self._show_ai_unavailable_dialog(
+                "AI未配置，无法进行头脑风暴",
+                on_use_local=lambda: None,
+            )
+            return
+        client = ai_manager.get_client()
+        if not client or not client.is_available():
+            self._show_ai_unavailable_dialog(
+                "AI连接失败，无法进行头脑风暴",
+                on_use_local=lambda: None,
+            )
             return
 
         problem = self.problem_input.value.strip() if self.problem_input else ""
 
         if not problem:
             self._show_snack_bar("请先输入问题描述")
+            return
+
+        # 检查是否已点击"查询原理"按钮
+        if not self._current_matrix_principles:
+            self._show_snack_bar("请先点击「查询原理」按钮获取发明原理")
+            self.brainstorm_btn.disabled = False
+            self._page.update()
             return
 
         # 显示嵌入的加载指示器
@@ -698,19 +1004,8 @@ class MatrixTab(TabContent):
 
             engine = get_triz_engine()
 
-            # 收集所有原理ID（去重）
-            all_principle_ids = []
-            matrix = self._matrix_manager.get_matrix("39")
-
-            improving_list = self.improving_params if self.improving_params else [None]
-            worsening_list = self.worsening_params if self.worsening_params else [None]
-
-            for imp in improving_list:
-                for wors in worsening_list:
-                    query_result = matrix.query_matrix(improving=imp, worsening=wors)
-                    all_principle_ids.extend(query_result.principle_ids)
-
-            unique_principle_ids = list(dict.fromkeys(all_principle_ids))
+            # 直接使用"查询原理"缓存的原理
+            unique_principle_ids = [p.id for p in self._current_matrix_principles]
 
             # 使用AI分析
             improving = self.improving_params[0] if self.improving_params else None
@@ -748,7 +1043,7 @@ class MatrixTab(TabContent):
                 solution_count=len(solutions),
             )
 
-            # 用矩阵查询的原理数据同步解决方案的原理信息
+            # 用"查询原理"缓存的原理数据同步解决方案的原理信息
             if self._current_matrix_principles and session.solutions:
                 principle_map = {p.id: p for p in self._current_matrix_principles}
                 for sol in session.solutions:
@@ -786,8 +1081,6 @@ class MatrixTab(TabContent):
 
         except Exception as ex:
             logger.error(f"头脑风暴失败: {ex}")
-            # AI调用失败，标记为未连接
-            self._mark_ai_disconnected()
             self._show_snack_bar(f"头脑风暴失败: {str(ex)}")
         finally:
             self.loading_indicator.visible = False

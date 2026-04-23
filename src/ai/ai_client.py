@@ -35,8 +35,17 @@ from config.constants import (
     PRINCIPLE_CATEGORIES,
 )
 from data.models import AIAnalysisRequest, AIAnalysisResponse, Solution
+from data.triz_constants import ENGINEERING_PARAMETERS_48
 
 logger = logging.getLogger(__name__)
+
+
+def _get_response_content(response) -> str | None:
+    """安全提取API响应内容"""
+    if not response.choices:
+        logger.warning("API响应中没有任何choices")
+        return None
+    return response.choices[0].message.content
 
 
 class AIClient:
@@ -127,7 +136,7 @@ class AIClient:
                 max_tokens=10,
             )
 
-            success = response.choices[0].message.content is not None
+            success = _get_response_content(response) is not None
             logger.info(f"API连接测试: {'成功' if success else '失败'}")
             return success
 
@@ -135,22 +144,31 @@ class AIClient:
             logger.error(f"API连接测试失败: {e}")
             return False
 
-    async def detect_parameters(self, problem: str) -> dict[str, Any]:
+    async def detect_parameters(
+        self, problem: str, matrix_type: str = "39", max_params: int = 1
+    ) -> dict[str, Any]:
         """
         使用AI检测技术参数
 
         Args:
             problem: 问题描述
+            matrix_type: 矩阵类型，"39" 或 "48"
+            max_params: 每个分类最多返回的参数数量
 
         Returns:
             包含改善和恶化参数的字典
         """
+        if matrix_type == "48":
+            return await self._detect_parameters_48(problem, max_params)
+        return await self._detect_parameters_39(problem, max_params)
+
+    async def _detect_parameters_39(self, problem: str, max_params: int = 1) -> dict[str, Any]:
+        """使用39工程参数检测技术矛盾"""
         if not self.is_available():
             logger.warning("AI不可用，降级到本地引擎")
-            return self._local_detect_parameters(problem)
+            return self._local_detect_parameters(problem, "39")
 
         assert self.client is not None
-        # 使用constants中正确定义的39工程参数
         params_39 = ENGINEERING_PARAMETERS_39
         params_str = "\n".join([f"{i+1}. {p}" for i, p in enumerate(params_39)])
 
@@ -171,11 +189,55 @@ JSON格式（严格按照这个格式）：
         user_prompt = f"""问题：{problem}
 
 请分析这个TRIZ问题，找出：
-1. 改善参数：你希望改善、提高、增强的目标（选择1-2个）
-2. 恶化参数：改善过程中可能带来的负面影响（选择1-2个）
+1. 改善参数：你希望改善、提高、增强的目标（请返回{max_params}个相关参数）
+2. 恶化参数：改善过程中可能带来的负面影响（请返回{max_params}个相关参数）
 
-注意：参数名必须从39个工程参数列表中精确选择，不要自己创造参数名！"""
+注意：请尽量从不同角度列出所有相关的改善和恶化参数！参数名必须从39个工程参数列表中精确选择，不要自己创造参数名！"""
 
+        return await self._do_detect_parameters(
+            system_prompt, user_prompt, params_39, problem, "39"
+        )
+
+    async def _detect_parameters_48(self, problem: str, max_params: int = 1) -> dict[str, Any]:
+        """使用48工程参数检测技术矛盾"""
+        if not self.is_available():
+            logger.warning("AI不可用，降级到本地引擎")
+            return self._local_detect_parameters(problem, "48")
+
+        assert self.client is not None
+        params_48 = ENGINEERING_PARAMETERS_48
+        params_str = "\n".join([f"{i+1}. {p}" for i, p in enumerate(params_48)])
+
+        system_prompt = f"""你是一个TRIZ专家。你的任务是从用户问题中识别出TRIZ改善参数和恶化参数。
+
+【强制要求】
+1. improving和worsening数组中的每一个参数必须完全匹配下面的48个参数之一，不多不少
+2. 不要自己创造、缩写、修改任何参数名，只使用列表中存在的参数
+3. 如果不确定某个参数是否匹配，请从列表中选择最接近的一个
+4. 只输出JSON，不要输出任何其他文字
+
+48个工程参数列表：
+{params_str}
+
+JSON格式（严格按照这个格式）：
+{{"improving": ["参数1", "参数2"], "worsening": ["参数1"], "explanation": "解释"}}"""
+
+        user_prompt = f"""问题：{problem}
+
+请分析这个TRIZ问题，找出：
+1. 改善参数：你希望改善、提高、增强的目标（请返回{max_params}个相关参数）
+2. 恶化参数：改善过程中可能带来的负面影响（请返回{max_params}个相关参数）
+
+注意：请尽量从不同角度列出所有相关的改善和恶化参数！参数名必须从48个工程参数列表中精确选择，不要自己创造参数名！"""
+
+        return await self._do_detect_parameters(
+            system_prompt, user_prompt, params_48, problem, "48"
+        )
+
+    async def _do_detect_parameters(
+        self, system_prompt: str, user_prompt: str, valid_params: list[str], problem: str, matrix_type: str = "39"
+    ) -> dict[str, Any]:
+        """执行参数检测的通用逻辑"""
         max_retries = 2
         for attempt in range(max_retries):
             try:
@@ -193,7 +255,7 @@ JSON格式（严格按照这个格式）：
 
                 processing_time = (datetime.now() - start_time).total_seconds()
 
-                content = response.choices[0].message.content or ""
+                content = _get_response_content(response) or ""
                 logger.info(f"AI原始响应(尝试{attempt + 1}): {content}")
 
                 # 解析JSON
@@ -217,9 +279,9 @@ JSON格式（严格按照这个格式）：
                 if isinstance(worsening, str):
                     worsening = [worsening] if worsening else []
 
-                # 严格验证：只保留在39参数列表中的参数
-                improving = [p for p in improving if p in params_39]
-                worsening = [p for p in worsening if p in params_39]
+                # 严格验证：只保留在有效参数列表中的参数
+                improving = [p for p in improving if p in valid_params]
+                worsening = [p for p in worsening if p in valid_params]
 
                 # 如果参数为空，让AI重新思考
                 if not improving and not worsening:
@@ -236,32 +298,41 @@ JSON格式（严格按照这个格式）：
                 logger.error(f"JSON解析失败: {e}, 尝试{attempt + 1}/{max_retries}")
             except APITimeoutError:
                 logger.error("AI请求超时")
-                return self._local_detect_parameters(problem)
+                return self._local_detect_parameters(problem, matrix_type)
             except APIConnectionError:
                 logger.error("AI连接错误")
-                return self._local_detect_parameters(problem)
+                return self._local_detect_parameters(problem, matrix_type)
             except APIError as e:
                 logger.error(f"API错误: {e}")
-                return self._local_detect_parameters(problem)
+                return self._local_detect_parameters(problem, matrix_type)
             except Exception as e:
                 logger.error(f"未知错误: {e}")
-                return self._local_detect_parameters(problem)
+                return self._local_detect_parameters(problem, matrix_type)
 
         # 所有重试都失败，降级到本地引擎
         logger.warning("AI参数检测失败，降级到本地引擎")
-        return self._local_detect_parameters(problem)
+        return self._local_detect_parameters(problem, matrix_type)
 
-    def _local_detect_parameters(self, problem: str) -> dict[str, Any]:
+    def _local_detect_parameters(self, problem: str, matrix_type: str = "39") -> dict[str, Any]:
         """本地引擎参数检测（降级方案）"""
         try:
-            from ..core.triz_engine import get_triz_engine
-            engine = get_triz_engine()
-            result = engine.local_engine.detect_parameters(problem)
+            from core.triz_engine import LocalTRIZEngine
+
+            engine = LocalTRIZEngine()
+            result = engine.detect_parameters(problem, matrix_type)
+            # 替换explanation为完整的提示文字
+            result["explanation"] = "本地算法自动检测参数误差较大，请前往全局设置AI设置中进行配置"
+            result["from_local_fallback"] = True
             logger.info(f"本地引擎参数检测结果: {result}")
             return result
         except Exception as e:
             logger.error(f"本地引擎参数检测失败: {e}")
-            return {"improving": "", "worsening": "", "explanation": "参数检测失败"}
+            return {
+                "improving": [],
+                "worsening": [],
+                "explanation": "本地算法自动检测参数误差较大，请前往全局设置AI设置中进行配置",
+                "from_local_fallback": True,
+            }
 
     async def generate_solutions(
         self, request: AIAnalysisRequest
@@ -296,11 +367,11 @@ JSON格式（严格按照这个格式）：
 
             processing_time = (datetime.now() - start_time).total_seconds()
 
-            content = response.choices[0].message.content
+            content = _get_response_content(response) or ""
 
             # 解析解决方案
             solutions = self._parse_solutions(
-                content or "", request.principle_ids or []
+                content, request.principle_ids or []
             )
 
             logger.info(
@@ -367,7 +438,7 @@ JSON格式（严格按照这个格式）：
                 max_tokens=1500,
             )
 
-            content = response.choices[0].message.content or ""
+            content = _get_response_content(response) or ""
 
             # 移除思考标签
             import re as regex_module

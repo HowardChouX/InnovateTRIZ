@@ -4,6 +4,8 @@
 """
 
 import logging
+import os
+import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -13,6 +15,7 @@ from config.constants import COLORS
 from data.local_storage import LocalStorage
 from data.models import AnalysisSession
 from ui.app_shell import TabContent
+from utils.logger import LOG_FILE
 
 if TYPE_CHECKING:
     from ui.ai_settings_dialog import AISettingsDialog
@@ -57,6 +60,7 @@ class SettingsTab(TabContent):
         self.select_all_cb: ft.Checkbox | None = None
         self._ai_settings_dialog: AISettingsDialog | None = None
         self._log_dialog: ft.AlertDialog | None = None
+        self._log_display_text: ft.Text | None = None  # 日志内容文本引用
         # 动态文本引用
         self._delete_btn_text: ft.Text | None = None
         self._load_more_btn_text: ft.Text | None = None
@@ -308,54 +312,28 @@ class SettingsTab(TabContent):
             self._ai_settings_dialog = AISettingsDialog(self._page)
         self._ai_settings_dialog.show()
 
-    def _show_log_viewer(self, _: ft.ControlEvent | None = None) -> None:
-        """显示日志查看器"""
-        import os
-        from pathlib import Path
+    def _get_log_content(self) -> str:
+        """获取日志文件内容"""
+        log_file = LOG_FILE
+        is_android = (
+            os.getenv("FLET_PLATFORM") == "android"
+            or sys.platform == "android"
+            or "ANDROID" in os.environ.get("ANDROID_ROOT", "")
+            or "ANDROID_DATA" in os.environ
+        )
+        debug_info = f"""[诊断信息]
+Android环境: {is_android}
+FLET_APP_STORAGE_DATA: {os.getenv('FLET_APP_STORAGE_DATA') or '(未设置)'}
+日志文件路径: {log_file}
+日志文件存在: {log_file.exists() if log_file else 'N/A'}
+"""
 
-        # Android 环境检测（Flet官方推荐方式）
-        def _is_android_env() -> bool:
-            import sys
-
-            if os.getenv("FLET_PLATFORM") == "android":
-                return True
-            if sys.platform == "android":
-                return True
-            if "ANDROID" in os.environ.get("ANDROID_ROOT", ""):
-                return True
-            if "ANDROID_DATA" in os.environ:
-                return True
-            return False
-
-        # 使用与 main.py 一致的日志路径
-        app_data_path = os.getenv("FLET_APP_STORAGE_DATA")
-        if app_data_path:
-            log_file = Path(app_data_path) / "logs" / "triz_app.log"
-        elif _is_android_env():
-            # Android 环境回退到当前目录
-            log_file = Path(".") / ".triz_logs" / "triz_app.log"
-        else:
-            # 桌面环境
-            config_home = os.getenv("XDG_CONFIG_HOME") or os.path.join(
-                Path.home(), ".config"
-            )
-            log_file = Path(config_home) / "triz-assistant" / "logs" / "triz_app.log"
-
-        # 安全验证：解析并验证日志路径
-        try:
-            log_file = log_file.resolve()
-            log_content = ""
-        except Exception:
-            log_content = "日志路径无效"
-
-        if not log_content and log_file.exists():
+        if log_file and log_file.exists():
             try:
-                # 高效读取最后100行：从文件末尾反向读取
                 with open(log_file, "rb") as f:
-                    f.seek(0, 2)  # 移到文件末尾
+                    f.seek(0, 2)
                     file_size = f.tell()
                     if file_size > 0:
-                        # 从末尾开始，查找最后100行
                         pos = file_size
                         lines_found = 0
                         lines: list[str] = []
@@ -367,32 +345,57 @@ class SettingsTab(TabContent):
                             chunk = f.read(read_size).decode("utf-8", errors="replace")
                             chunk_lines = chunk.split("\n")
                             if lines:
-                                # 第一块不需要去掉最后的空行
                                 lines[0] = chunk_lines[-1]
                             lines = chunk_lines + lines
                             lines_found = len(lines)
-                        log_content = "\n".join(lines[-100:])
-                    else:
-                        log_content = "日志文件为空"
-                if not log_content:
-                    log_content = "日志文件为空"
+                        return "\n".join(lines[-100:])
+                    return "日志文件为空"
             except Exception as ex:
-                log_content = f"读取日志失败: {ex}"
-        elif not log_content:
-            log_content = f"日志文件不存在\n请检查 {log_file}"
+                return f"读取日志失败: {ex}\n\n{debug_info}"
+        return f"日志文件不存在\n\n{debug_info}请检查上述路径是否正确"
+
+    def _refresh_log(self, _: ft.ControlEvent | None = None) -> None:
+        """刷新日志内容（不重建对话框）"""
+        if self._log_display_text is None:
+            return
+        new_content = self._get_log_content()
+        self._log_display_text.value = new_content
+        self._current_log_content = new_content
+        self._page.update()
+
+    def _show_log_viewer(self, _: ft.ControlEvent | None = None) -> None:
+        """显示日志查看器"""
+        # 如果对话框已存在，只刷新内容
+        if self._log_dialog is not None:
+            self._refresh_log()
+            return
+
+        # 获取日志内容
+        log_content = self._get_log_content()
+        self._current_log_content = log_content
+
+        # 创建日志内容文本引用（用于刷新）
+        self._log_display_text = ft.Text(
+            log_content, size=10, font_family="monospace", selectable=True
+        )
 
         # 刷新按钮
         refresh_btn = ft.TextButton(
             content=ft.Text("刷新"),
             icon=ft.icons.Icons.REFRESH,
-            on_click=self._show_log_viewer,
+            on_click=self._refresh_log,
+        )
+
+        # 复制按钮
+        copy_btn = ft.TextButton(
+            content=ft.Text("复制"),
+            icon=ft.icons.Icons.CONTENT_COPY,
+            on_click=self._copy_log_to_clipboard,
         )
 
         # 日志内容区域（可滚动）
         log_display = ft.Container(
-            content=ft.Text(
-                log_content, size=10, font_family="monospace", selectable=True
-            ),
+            content=self._log_display_text,
             padding=10,
             bgcolor=ft.Colors.GREY_100,
             border_radius=5,
@@ -404,17 +407,23 @@ class SettingsTab(TabContent):
             content=ft.Column(
                 controls=[
                     ft.Row(
-                        [
+                        controls=[
                             ft.Icon(
                                 ft.icons.Icons.DESCRIPTION, color=COLORS["primary"]
                             ),
                             ft.Text("日志查看器", size=18, weight=ft.FontWeight.BOLD),
-                            ft.Container(expand=True),
+                        ],
+                        alignment=ft.MainAxisAlignment.START,
+                    ),
+                    ft.Row(
+                        controls=[
+                            copy_btn,
                             refresh_btn,
-                        ]
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
                     ),
                     ft.Divider(),
-                    ft.Text(f"文件: {log_file}", size=11, color=ft.Colors.GREY),
+                    ft.Text(f"文件: {LOG_FILE}", size=11, color=ft.Colors.GREY),
                     ft.Container(height=5),
                     log_display,
                 ],
@@ -425,7 +434,7 @@ class SettingsTab(TabContent):
             height=500,
         )
 
-        dialog = ft.AlertDialog(
+        self._log_dialog = ft.AlertDialog(
             content=dialog_content,
             actions=[
                 ft.TextButton(
@@ -435,20 +444,22 @@ class SettingsTab(TabContent):
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-
-        # 关闭已存在的日志对话框，避免重复打开
-        if self._log_dialog is not None:
-            try:
-                self._page.pop_dialog()
-            except Exception:
-                pass
-        self._log_dialog = dialog
-        self._page.show_dialog(dialog)
+        self._page.show_dialog(self._log_dialog)
 
     def _close_log_dialog(self) -> None:
         """关闭日志对话框"""
         self._log_dialog = None
+        self._log_display_text = None
         self._page.pop_dialog()
+
+    async def _copy_log_to_clipboard(self, _: ft.ControlEvent | None = None) -> None:
+        """复制日志到剪贴板"""
+        log_content = getattr(self, "_current_log_content", "")
+        if log_content:
+            from flet.controls.services.clipboard import Clipboard
+            clipboard = Clipboard()
+            await clipboard.set(log_content)
+            self._show_snack_bar("日志已复制到剪贴板")
 
     def _confirm_clear_all(self, _: ft.ControlEvent | None = None) -> None:
         """确认清空所有历史"""

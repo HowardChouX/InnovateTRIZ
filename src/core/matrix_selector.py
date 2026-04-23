@@ -54,10 +54,15 @@ class ContradictionMatrix:
         )
 
     def _init_48_matrix(self) -> None:
-        """初始化48矛盾矩阵（预留）"""
-        self.parameters = []
-        self.matrix = {}
-        logger.warning("48矛盾矩阵暂未实现，使用空矩阵")
+        """初始化48矛盾矩阵"""
+        from data.triz_constants import ENGINEERING_PARAMETERS_48, MATRIX_48
+
+        self.parameters = ENGINEERING_PARAMETERS_48
+        self.matrix = MATRIX_48
+
+        logger.info(
+            f"加载48矛盾矩阵，包含{len(self.parameters)}个参数和{len(self.matrix)}个组合"
+        )
 
     def find_solutions(self, improving: str, worsening: str) -> list[int]:
         """

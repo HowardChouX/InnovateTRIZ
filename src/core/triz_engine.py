@@ -21,14 +21,45 @@ from data.models import (
     AnalysisSession,
     Solution,
 )
+from data.triz_constants import ENGINEERING_PARAMETERS_48
 
 logger = logging.getLogger(__name__)
+
+# 参数名称映射：从param_keywords使用的简写名称到ENGINEERING_PARAMETERS_39完整名称
+_PARAM_SHORT_TO_FULL = {
+    "重量": "移动物体的重量",
+    "亮度": "明亮度",
+    "能源的浪费": "能量的浪费",
+    "信息的流失": "信息的遗漏",
+    "物质的总量": "物质的数量",
+    "测量的准度": "测量的准确度",
+    "制造的准度": "制造的准确度",
+    "制造性": "可制造性",
+    "物体的稳定性": "结构的稳定性",
+    "移动物体的持久性": "移动物体的耐久性",
+    "静止物体的持久性": "静止物体的耐久性",
+    "移动物体用的能源": "移动物体消耗的能量",
+    "非移动物体用的能源": "静止物体消耗的能量",
+    "产能/生产力": "生产率",
+    "作用于物体的有害因素": "外来有害因素",
+    "设备的复杂性": "装置的复杂性",
+    "能耗": "能量的浪费",  # 能耗 -> 能量的浪费
+    "复杂性": "装置的复杂性",  # 简写 -> 完整
+}
+
+
+def _map_param_name(param: str) -> str:
+    """将简写参数名映射到完整参数名（与MATRIX_39键匹配）"""
+    return _PARAM_SHORT_TO_FULL.get(param, param)
 
 
 @lru_cache(maxsize=256)
 def _cached_detect_parameters(problem: str) -> tuple:
     """
-    带缓存的参数检测算法（纯函数，无副作用）
+    增强版参数检测算法（39矩阵）
+    策略1: "太X"上下文检测 - 识别问题参数
+    策略2: 双向关键词评分 - 统计正负面词汇
+    策略3: Trade-off配对 - 常见矛盾组合
 
     Args:
         problem: 问题描述
@@ -36,88 +67,245 @@ def _cached_detect_parameters(problem: str) -> tuple:
     Returns:
         (improving_param, worsening_param, explanation) 元组
     """
-    problem_lower = problem.lower()
+    text = problem.strip()
+    text_lower = text.lower()
 
-    # 关键词数据结构
-    class KeywordData:
-        def __init__(self, kws: list[str], w: float):
-            self.keywords = kws
-            self.weight = w
-
-    # 扩展的改善参数关键词映射（带权重）
-    improving_keywords: dict[str, KeywordData] = {
-        "速度": KeywordData(
-            ["快", "速度", "效率", "响应", "延迟", "耗时", "快速", "加速"], 1.0
-        ),
-        "强度": KeywordData(
-            ["强", "坚固", "耐用", "寿命", "可靠", "稳固", "牢固"], 1.0
-        ),
-        "精度": KeywordData(["精确", "准确", "误差", "偏差", "公差", "精密"], 1.0),
-        "重量": KeywordData(["轻", "轻便", "轻量", "轻巧"], 1.2),
-        "能耗": KeywordData(["省电", "节能", "低功耗", "省能"], 1.2),
-        "成本": KeywordData(["便宜", "省钱", "经济", "廉价", "低成本"], 1.2),
-        "安全性": KeywordData(["安全", "防护", "保险", "安心"], 1.0),
-        "可靠性": KeywordData(["可靠", "稳定", "耐用", "持久", "长久"], 1.0),
-        "功率": KeywordData(["功率", "动力", "强劲", "马力", "高性能"], 1.0),
-        "温度": KeywordData(["冷却", "散热", "低温", "凉爽"], 1.0),
-        "产能/生产力": KeywordData(["产能/生产力", "产量", "效率", "高产"], 1.0),
-        "修复性": KeywordData(["维修", "保养", "易修", "维护"], 1.0),
-        "适应性": KeywordData(["适应", "通用", "灵活", "多变"], 1.0),
-        "使用的便利性": KeywordData(["易用", "简便", "简单", "操作方便"], 1.0),
-        "自动化程度": KeywordData(["自动", "智能", "自动化", "无人"], 1.0),
-        "制造的准度": KeywordData(["精密", "精细", "光洁", "平滑"], 1.0),
-        "测量的准度": KeywordData(["测量", "检测", "传感", "精确"], 1.0),
+    # ===== 策略1: "太X"/"X不好"上下文模式检测 =====
+    # 识别"太X"、"X太"、"X不好"、"X差"等结构，确定问题参数
+    # 当检测到"太X"时，X是用户想要改善的参数
+    context_problem_params: dict[str, str] = {
+        "重": "重量",
+        "沉": "重量",
+        "快": "速度",
+        "慢": "速度",
+        "贵": "成本",
+        "热": "温度",
+        "大": "功率",  # 功率大
+        "强": "强度",
+        "弱": "强度",
+        "复杂": "复杂性",
+        "耗电": "能耗",
+        "费电": "能耗",
+        "差": "产能/生产力",  # 效率差
+        "不好": None,  # 需要特殊处理
+        "兼容性不好": "兼容性/连通性",
+        "稳定性差": "物体的稳定性",
+        "寿命短": "移动物体的持久性",
+        "效率低": "产能/生产力",
+        "质量差": "强度",
+        "不可靠": "可靠性",
+        "不安全": "安全性",
     }
 
-    # 恶化工况关键词映射（带权重）
-    worsening_keywords: dict[str, KeywordData] = {
-        "速度": KeywordData(["慢", "缓慢", "减速", "延迟"], 1.0),
-        "重量": KeywordData(["重", "沉重", "笨重", "笨拙"], 1.0),
-        "能耗": KeywordData(["耗电", "功耗", "费电", "高能耗", "能源消耗"], 1.0),
-        "成本": KeywordData(["贵", "昂贵", "高成本", "费用高"], 1.0),
-        "复杂性": KeywordData(["复杂", "繁琐", "难用", "麻烦", "复杂化"], 1.0),
-        "可靠性": KeywordData(["故障", "失效", "损坏", "易坏", "不稳定"], 1.0),
-        "强度": KeywordData(["弱", "脆弱", "易损", "不耐用"], 1.0),
-        "温度": KeywordData(["热", "高温", "过热", "发烫"], 1.0),
-        "移动物体用的能源": KeywordData(["耗能", "能耗高", "费电"], 1.2),
-        "设备的复杂性": KeywordData(["复杂", "繁杂", "结构复杂"], 1.0),
-        "控制的复杂性": KeywordData(["难检测", "难测量", "检测复杂"], 1.0),
-        "有害的副作用": KeywordData(["污染", "危害", "有害", "危险"], 1.0),
-        "时间的浪费": KeywordData(["耗时", "费时", "时间长", "延误"], 1.0),
-        "物质的浪费": KeywordData(["损耗", "浪费", "消耗"], 1.0),
-        "信息的流失": KeywordData(["丢失", "损失", "失真"], 1.0),
-    }
+    # 从"太X"模式中识别问题参数
+    problem_param_from_context: str | None = None
 
-    # 检测改善参数
-    improving_param = "速度"
-    improving_score = 0.0
+    # 检测"太+字"或"+字太"模式 - 但排除"成本高"这类
+    for neg_word, param in context_problem_params.items():
+        if neg_word == "高" or neg_word == "低":
+            continue  # 跳过单独的高/低，避免误匹配
+        if f"太{neg_word}" in text_lower or f"{neg_word}太" in text_lower:
+            problem_param_from_context = param
+            break
 
-    for param, data in improving_keywords.items():
-        score = sum(1 for keyword in data.keywords if keyword in problem_lower)
-        weighted_score = score * data.weight
-        if weighted_score > improving_score:
-            improving_score = weighted_score
-            improving_param = param
+    # 特殊处理"X太高"/"X太低"模式 - 针对特定参数
+    if not problem_param_from_context:
+        if "温度太高" in text_lower or "温度太低" in text_lower:
+            problem_param_from_context = "温度"
+        elif "成本太高" in text_lower or "成本太低" in text_lower:
+            problem_param_from_context = "成本"
+        elif "重量太高" in text_lower or "重量太低" in text_lower:
+            problem_param_from_context = "重量"
+        elif "功率太高" in text_lower or "功率太低" in text_lower:
+            problem_param_from_context = "功率"
+        elif "速度太高" in text_lower or "速度太低" in text_lower:
+            problem_param_from_context = "速度"
+        elif "强度太高" in text_lower or "强度太低" in text_lower:
+            problem_param_from_context = "强度"
 
-    # 检测恶化参数
-    worsening_param = "成本"
-    worsening_score = 0.0
-
-    for param, data in worsening_keywords.items():
-        score = sum(1 for keyword in data.keywords if keyword in problem_lower)
-        weighted_score = score * data.weight
-        if weighted_score > worsening_score:
-            worsening_score = weighted_score
-            worsening_param = param
-
-    # 避免改善和恶化参数相同
-    if improving_param == worsening_param:
+    # 特殊处理"X不好"模式
+    if not problem_param_from_context:
         for param in ENGINEERING_PARAMETERS_39:
-            if param != improving_param and param != "速度" and param != "成本":
-                worsening_param = param
+            if f"{param}不好" in text_lower or f"{param}差" in text_lower or f"{param}低" in text_lower:
+                problem_param_from_context = param
                 break
+
+    # ===== 策略2: 双向关键词评分 =====
+    # 参数 → (正面词列表, 负面词列表, 权重)
+    param_keywords: dict[str, tuple[list[str], list[str], float]] = {
+        "速度": (["快", "高速", "加速", "快速", "提速", "高速度", "迅速度", "迅捷"], ["慢", "缓慢", "低速", "减速", "延迟", "耗时"], 1.2),
+        "重量": (["轻", "轻量", "轻便", "轻巧", "减重", "轻盈"], ["重", "沉重", "笨重", "过重", "笨拙"], 1.3),
+        "强度": (["强", "坚固", "牢固", "耐用", "高强度", "坚固", "结实"], ["弱", "脆弱", "易损", "不耐用", "强度低"], 1.1),
+        "可靠性": (["可靠", "稳定", "信赖", "稳妥", "耐用", "持久"], ["故障", "失效", "损坏", "失灵", "不稳定", "易坏"], 1.2),
+        "能耗": (["省电", "节能", "低功耗", "高效能", "省能", "节能型", "油耗低", "省油"], ["耗电", "费电", "高功耗", "能耗高", "耗能", "油耗高", "费油"], 1.3),
+        "成本": (["便宜", "省钱", "经济", "廉价", "低成本", "实惠", "划算"], ["贵", "昂贵", "高成本", "费用高", "价高"], 1.2),
+        "安全性": (["安全", "保险", "防护", "安心", "安保", "无危险"], ["危险", "不安全", "有风险", "隐患", "风险"], 1.2),
+        "温度": (["冷却", "散热", "低温", "降温", "凉爽", "耐热"], ["热", "高温", "过热", "发烫", "升温", "炎热"], 1.0),
+        "功率": (["大功率", "高功率", "强劲", "马力足", "动力强", "高性能"], ["功率低", "动力不足", "马力小"], 1.1),
+        "精度": (["精确", "准确", "精密", "高精", "精准", "无误", "精密"], ["误差大", "不精确", "偏差大", "粗糙"], 1.1),
+        "复杂性": (["简单", "简易", "简化", "简洁", "精简"], ["复杂", "繁琐", "繁杂", "结构复杂", "麻烦"], 1.1),
+        "产能/生产力": (["高效", "高产", "高产能", "高效率", "增产", "提升效率"], ["低效", "低产", "效率低", "产能低", "慢"], 1.2),
+        "自动化程度": (["自动", "自动化", "智能", "无人", "省力"], ["手动", "人工", "繁琐", "复杂"], 1.1),
+        "制造的准度": (["精密", "精细", "光洁", "平滑", "高品质"], ["粗糙", "毛刺", "精度低", "误差大"], 1.0),
+        "测量的准度": (["精确", "精准", "高灵敏度", "精确测量"], ["误差", "偏差", "不准", "粗糙"], 1.0),
+        "修复性": (["易维修", "易修复", "易保养", "好维护", "易维护"], ["难维修", "难修复", "难保养", "维护困难"], 1.0),
+        "适应性": (["适应", "灵活", "通用", "多变", "可调", "自适应"], ["僵硬", "死板", "单一", "固定"], 1.0),
+        "使用的便利性": (["易用", "简便", "简单", "方便", "人性化", "直观"], ["难用", "复杂", "繁琐", "不方便"], 1.0),
+        "设备的复杂性": (["简单", "简洁", "紧凑", "小型化"], ["复杂", "庞大", "庞大", "繁杂"], 1.0),
+        "控制的复杂性": (["易控制", "简单控制", "直观"], ["难控制", "复杂控制", "难调节"], 1.0),
+        "时间的浪费": (["省时", "快速", "高效", "节省时间"], ["耗时", "费时", "时间长", "缓慢"], 1.1),
+        "物质的浪费": (["省材", "节约", "减少损耗", "节省材料"], ["浪费", "损耗", "消耗大", "材料消耗"], 1.0),
+        "信息的流失": (["信息完整", "数据可靠", "保真"], ["丢失", "失真", "信息丢失", "损失"], 1.0),
+        "有害的副作用": (["环保", "无害", "绿色", "清洁"], ["污染", "危害", "有害", "危险", "副作用"], 1.0),
+        "亮度": (["亮", "明亮", "高亮度", "照亮", "清晰"], ["暗", "昏暗", "亮度低", "模糊"], 1.0),
+        "形状": (["美观", "好看", "漂亮", "流线型", "合理形状"], ["丑陋", "变形", "畸形", "形状不合理"], 0.9),
+        "移动物体的持久性": (["耐用", "持久", "寿命长", "经久耐用"], ["易损", "不耐用", "寿命短"], 1.0),
+        "静止物体的持久性": (["耐久", "持久", "长寿", "稳定"], ["易老化", "退化", "不稳定"], 1.0),
+        "张力/压力": (["抗压", "强度高", "耐压"], ["易变形", "不耐压", "压力下失效"], 1.0),
+        "移动物体用的能源": (["新能源", "清洁能源", "省能"], ["污染", "高能耗", "化石能源"], 1.0),
+        "非移动物体用的能源": (["节能", "低能耗", "高效"], ["高能耗", "浪费能源"], 1.0),
+    }
+
+    # 评分计算
+    improving_scores: dict[str, float] = {}
+    worsening_scores: dict[str, float] = {}
+
+    for param, (pos_kws, neg_kws, weight) in param_keywords.items():
+        # 正面得分
+        pos_matches = sum(1 for kw in pos_kws if kw in text_lower)
+        improving_scores[param] = pos_matches * weight
+
+        # 负面得分
+        neg_matches = sum(1 for kw in neg_kws if kw in text_lower)
+        worsening_scores[param] = neg_matches * weight
+
+    # 如果检测到"太X"上下文，将对应参数标记为问题参数（需要改善）
+    if problem_param_from_context:
+        # 如果问题参数不在高分列表中，给它一个基础分
+        if problem_param_from_context not in improving_scores or improving_scores[problem_param_from_context] == 0:
+            improving_scores[problem_param_from_context] = 0.5
+
+    # ===== 策略3: Trade-off常见矛盾配对 =====
+    # 当检测到特定参数时，优先考虑其对应的矛盾参数
+    tradeoff_pairs = {
+        "速度": "重量",  # 高速往往伴随重量增加
+        "重量": "强度",  # 轻量化往往降低强度
+        "精度": "复杂性",  # 高精度往往伴随结构复杂
+        "能耗": "功率",  # 大功率往往高能耗
+        "成本": "可靠性",  # 降低成本往往降低可靠性
+        "安全性": "复杂性",  # 高安全性往往伴随复杂设计
+        "自动化程度": "复杂性",  # 高自动化往往复杂
+        "亮度": "能耗",  # 高亮度往往高能耗
+    }
+
+    # 检测到改善参数时，顺带提升其tradeoff参数的恶化可能性
+    for param, (pos_kws, neg_kws, weight) in param_keywords.items():
+        pos_matches = sum(1 for kw in pos_kws if kw in text_lower)
+        if pos_matches > 0 and param in tradeoff_pairs:
+            tradeoff_param = tradeoff_pairs[param]
+            worsening_scores[tradeoff_param] = worsening_scores.get(tradeoff_param, 0) + 0.5
+
+    # ===== 综合决策 =====
+    # 优先使用上下文检测到的参数（仅当参数在39矩阵中时）
+    if problem_param_from_context and problem_param_from_context in ENGINEERING_PARAMETERS_39:
+        improving_param = problem_param_from_context
+    else:
+        # 从关键词评分选择
+        if improving_scores:
+            improving_param = max(improving_scores, key=improving_scores.get)
+            # 如果最高分为0，使用默认
+            if improving_scores[improving_param] == 0:
+                improving_param = "速度"
+        else:
+            improving_param = "速度"
+
+    if worsening_scores:
+        worsening_param = max(worsening_scores, key=worsening_scores.get)
+        if worsening_scores[worsening_param] == 0:
+            worsening_param = "能耗" if improving_param != "能耗" else "成本"
+    else:
+        worsening_param = "能耗" if improving_param != "能耗" else "成本"
+
+    # 避免相同参数或同类参数（当上下文检测到问题时）
+    similar_params = {
+        "重量": ["移动物体的重量", "静止物体的重量"],
+        "速度": ["移动物体的重量"],  # 速度与重量有关联
+        "温度": ["移动物体用的能源", "非移动物体用的能源"],
+    }
+
+    if improving_param == worsening_param or (
+        problem_param_from_context and worsening_param in similar_params.get(improving_param, [])
+    ):
+        # 找第一个不同的参数
+        candidates = [p for p in ENGINEERING_PARAMETERS_39 if p != improving_param and p not in similar_params.get(improving_param, [])]
+        if candidates:
+            worsening_param = candidates[0]
         else:
             worsening_param = "能耗" if improving_param != "能耗" else "设备的复杂性"
+
+    return (_map_param_name(improving_param), _map_param_name(worsening_param), "本地算法自动检测")
+
+
+@lru_cache(maxsize=256)
+def _cached_detect_parameters_48(problem: str) -> tuple:
+    """
+    增强版参数检测算法（48矩阵）
+    包含39矩阵所有参数 + 9个扩展参数
+
+    Args:
+        problem: 问题描述
+
+    Returns:
+        (improving_param, worsening_param, explanation) 元组
+    """
+    text = problem.strip()
+    text_lower = text.lower()
+
+    # 48矩阵新增的9个参数关键词
+    param_keywords_48: dict[str, tuple[list[str], list[str], float]] = {
+        "物质的数量": (["多", "量大", "批量", "数量多", "丰富"], ["少", "量少", "稀缺", "不足", "短缺"], 1.0),
+        "信息的数量": (["信息多", "数据多", "丰富", "详尽", "全面"], ["信息少", "数据少", "稀缺", "缺失", "不完整"], 1.0),
+        "移动物体的耐久性": (["耐用", "耐久", "寿命长", "经久", "持久"], ["不耐用", "易损", "寿命短", "老化快"], 1.1),
+        "结构的稳定性": (["稳定", "稳固", "牢固", "结实", "抗震"], ["不稳定", "晃动", "松动", "易倒", "脆弱"], 1.2),
+        "明亮度": (["亮", "明亮", "照亮", "清晰", "高亮度"], ["暗", "昏暗", "阴暗", "模糊", "不清晰"], 1.0),
+        "运行效率": (["高效", "高效率", "省时", "快速", "性能高"], ["低效", "效率低", "缓慢", "性能低"], 1.2),
+        "兼容性/连通性": (["兼容", "通用", "互联", "互通", "适配"], ["不兼容", "隔离", "孤立", "封闭"], 1.1),
+        "安全性": (["安全", "保险", "防护", "安心", "无危险"], ["危险", "不安全", "有风险", "隐患", "事故"], 1.2),
+        "美观": (["美观", "漂亮", "好看", "优雅", "精致"], ["丑陋", "难看", "粗糙", "廉价感"], 0.8),
+    }
+
+    # 先用39参数算法
+    improving_param, worsening_param, _ = _cached_detect_parameters(problem)
+
+    # 检查是否匹配48新增参数
+    new_scores_improving: dict[str, float] = {}
+    new_scores_worsening: dict[str, float] = {}
+
+    for param, (pos_kws, neg_kws, weight) in param_keywords_48.items():
+        pos_matches = sum(1 for kw in pos_kws if kw in text_lower)
+        neg_matches = sum(1 for kw in neg_kws if kw in text_lower)
+        new_scores_improving[param] = pos_matches * weight
+        new_scores_worsening[param] = neg_matches * weight
+
+    # 如果48新增参数得分更高，替换结果
+    if new_scores_improving:
+        best_new_improving = max(new_scores_improving.items(), key=lambda x: x[1])
+        # 只有当得分 > 1时才替换（避免太低置信度）
+        if best_new_improving[1] > 1 and best_new_improving[0] != improving_param:
+            improving_param = best_new_improving[0]
+
+    if new_scores_worsening:
+        best_new_worsening = max(new_scores_worsening.items(), key=lambda x: x[1])
+        if best_new_worsening[1] > 1 and best_new_worsening[0] != worsening_param:
+            worsening_param = best_new_worsening[0]
+
+    # 如果改善和恶化相同，尝试从48新增参数中找一个不同的
+    if improving_param == worsening_param:
+        candidates = [p for p in ENGINEERING_PARAMETERS_48 if p != improving_param]
+        if candidates:
+            worsening_param = candidates[0]
+        else:
+            worsening_param = "物质的数量" if improving_param != "物质的数量" else "兼容性/连通性"
 
     return (improving_param, worsening_param, "本地算法自动检测")
 
@@ -199,18 +387,22 @@ class LocalTRIZEngine:
 
         return examples
 
-    def detect_parameters(self, problem: str) -> dict[str, str]:
+    def detect_parameters(self, problem: str, matrix_type: str = "39") -> dict[str, Any]:
         """
-        本地算法检测技术参数（改进版，带缓存）
+        本地算法检测技术参数（支持39/48矩阵）
 
         Args:
             problem: 问题描述
+            matrix_type: 矩阵类型，"39" 或 "48"
 
         Returns:
             包含改善和恶化参数的字典
         """
-        improving, worsening, explanation = _cached_detect_parameters(problem)
-        logger.info(f"本地参数检测: 改善={improving}, 恶化={worsening}")
+        if matrix_type == "48":
+            improving, worsening, explanation = _cached_detect_parameters_48(problem)
+        else:
+            improving, worsening, explanation = _cached_detect_parameters(problem)
+        logger.info(f"本地参数检测({matrix_type}矩阵): 改善={improving}, 恶化={worsening}")
         return {
             "improving": improving,
             "worsening": worsening,

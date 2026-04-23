@@ -108,10 +108,19 @@ class TRIZAppShell:
         """切换Tab"""
         logger.info(f"_switch_tab called with: {tab_id}")
 
-        # 隐藏当前Tab
-        if self._current_tab and self._current_tab in self._tab_registry:
-            logger.info(f"Hiding current tab: {self._current_tab}")
-            self._tab_registry[self._current_tab].visible = False
+        # 隐藏当前Tab并调用on_hide
+        previous_tab = self._current_tab
+        if previous_tab and previous_tab in self._tab_registry:
+            logger.info(f"Hiding current tab: {previous_tab}")
+            # 先调用旧tab的on_hide
+            prev_container = self._tab_registry[previous_tab]
+            if isinstance(prev_container.content, TabContent):
+                logger.info(f"Calling on_hide for {previous_tab}")
+                try:
+                    prev_container.content.on_hide()
+                except Exception as e:
+                    logger.error(f"on_hide for {previous_tab} failed: {e}", exc_info=True)
+            self._tab_registry[previous_tab].visible = False
 
         # 显示新Tab
         if tab_id in self._tab_registry:
@@ -149,6 +158,13 @@ class TRIZAppShell:
     def get_current_tab(self) -> str | None:
         """获取当前Tab标识"""
         return self._current_tab
+
+    def switch_to_tab(self, tab_id: str) -> None:
+        """切换到指定Tab（公开方法，供其他组件调用）"""
+        if tab_id in self._tab_registry:
+            self._switch_tab(tab_id)
+        else:
+            logger.warning(f"尝试切换到未知Tab: {tab_id}")
 
     def refresh_current_tab(self) -> None:
         """刷新当前Tab内容"""
